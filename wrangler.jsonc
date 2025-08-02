@@ -1,5 +1,5 @@
 {
-  "name": "my-chat-agent",
+  "name": "mymediset-chat",
   "main": "src/server.ts",
   "compatibility_date": "2025-05-07",
   "compatibility_flags": [
