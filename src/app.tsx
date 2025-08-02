@@ -12,6 +12,7 @@ import { Toggle } from "@/components/toggle/Toggle";
 import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import { Mcp } from "@/components/mcp/Mcp";
 
 // Icon imports
 import {
@@ -22,6 +23,8 @@ import {
   Trash,
   PaperPlaneTilt,
   Stop,
+  Image,
+  Gear,
 } from "@phosphor-icons/react";
 
 // List of tools that require human confirmation
@@ -38,7 +41,13 @@ export default function Chat() {
   });
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [mcpTools, setMcpTools] = useState<unknown[]>([]);
+  const [showMcpPanel, setShowMcpPanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -68,6 +77,41 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64Result = e.target?.result as string;
+        setImagePreview(base64Result);
+
+        // Console log the base64 encoding process
+        console.log("=== Base64 Encoding Process ===");
+        console.log("Original file:", file.name);
+        console.log("File type:", file.type);
+        console.log("File size:", file.size, "bytes");
+        console.log("Base64 result length:", base64Result.length, "characters");
+        console.log("Base64 prefix:", base64Result.substring(0, 50) + "...");
+        console.log("Full base64 data:", base64Result);
+        console.log("=================================");
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const triggerImageUpload = () => {
+    fileInputRef.current?.click();
+  };
+
   const agent = useAgent({
     agent: "chat",
   });
@@ -86,6 +130,45 @@ export default function Chat() {
     maxSteps: 5,
   });
 
+  // Custom input handler to handle image data
+  const handleCustomInputChange = (
+    e: React.ChangeEvent<HTMLTextAreaElement>
+  ) => {
+    handleAgentInputChange(e);
+    // Auto-resize the textarea
+    e.target.style.height = "auto";
+    e.target.style.height = `${e.target.scrollHeight}px`;
+    setTextareaHeight(`${e.target.scrollHeight}px`);
+  };
+
+  // Function to get the final message with image description
+  const getFinalMessage = () => {
+    let message = agentInput;
+    if (selectedImage) {
+      const imageDescription = `[Image uploaded: ${selectedImage.name}]`;
+      message = agentInput.trim()
+        ? `${agentInput} ${imageDescription}`
+        : `I've uploaded an image (${selectedImage.name}) for you to analyze.`;
+    }
+    return message;
+  };
+
+  // Function to read image format and console log it
+  const logImageFormat = (file: File) => {
+    console.log("=== Image Format Information ===");
+    console.log("File name:", file.name);
+    console.log("File type:", file.type);
+    console.log("File size:", file.size, "bytes");
+    console.log("File size (KB):", (file.size / 1024).toFixed(2), "KB");
+    console.log(
+      "File size (MB):",
+      (file.size / (1024 * 1024)).toFixed(2),
+      "MB"
+    );
+    console.log("Last modified:", new Date(file.lastModified).toLocaleString());
+    console.log("================================");
+  };
+
   // Scroll to bottom when messages change
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
@@ -102,14 +185,18 @@ export default function Chat() {
     )
   );
 
-  const formatTime = (date: Date) => {
+  const formatTime = (date: Date | undefined) => {
+    if (!date) return "";
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
-    <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
-      <HasOpenAIKey />
-      <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
+    <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden relative">
+      <HasGoogleAIKey />
+
+      {/* Main Chat Container - stays centered */}
+      <div className="h-[calc(100vh-2rem)] w-full max-w-lg shadow-xl rounded-md overflow-hidden border border-neutral-300 dark:border-neutral-800 flex flex-col z-10">
+        {/* Chat Header */}
         <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
           <div className="flex items-center justify-center h-8 w-8">
             <svg
@@ -131,13 +218,26 @@ export default function Chat() {
 
           <div className="flex-1">
             <h2 className="font-semibold text-base">AI Chat Agent</h2>
+            {mcpTools.length > 0 && (
+              <p className="text-xs text-green-600 dark:text-green-400">
+                🔗 {mcpTools.length} MCP tools connected
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-2 mr-2">
+            <Button
+              variant="ghost"
+              size="md"
+              shape="square"
+              className="rounded-full h-9 w-9"
+              onClick={() => setShowMcpPanel((prev) => !prev)}
+            >
+              <Gear size={20} />
+            </Button>
             <Bug size={16} />
             <Toggle
               toggled={showDebug}
-              aria-label="Toggle debug mode"
               onClick={() => setShowDebug((prev) => !prev)}
             />
           </div>
@@ -163,11 +263,11 @@ export default function Chat() {
           </Button>
         </div>
 
-        {/* Messages */}
+        {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
           {agentMessages.length === 0 && (
             <div className="h-full flex items-center justify-center">
-              <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
+              <Card className="p-6 bg-neutral-100 dark:bg-neutral-900">
                 <div className="text-center space-y-4">
                   <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
                     <Robot size={24} />
@@ -208,7 +308,7 @@ export default function Chat() {
                   className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`flex gap-2 max-w-[85%] ${
+                    className={`flex gap-2 ${
                       isUser ? "flex-row-reverse" : "flex-row"
                     }`}
                   >
@@ -300,22 +400,92 @@ export default function Chat() {
 
         {/* Input Area */}
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            handleAgentSubmit(e, {
-              data: {
-                annotations: {
-                  hello: "world",
+
+            // Prepare message content with image data
+            let messageContent = agentInput;
+
+            if (selectedImage) {
+              const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const result = reader.result as string;
+                  const base64Data = result.split(",")[1];
+                  resolve(base64Data);
+                };
+                reader.readAsDataURL(selectedImage);
+              });
+
+              // Create JSON message with image data
+              messageContent = JSON.stringify({
+                text: agentInput || "",
+                image: {
+                  image: base64,
+                  mimeType: selectedImage.type,
                 },
-              },
-            });
+              });
+            }
+
+            // Send the message with image data
+            if (messageContent.trim() || selectedImage) {
+              // Log image format if image is selected
+              if (selectedImage) {
+                logImageFormat(selectedImage);
+              }
+
+              // Get the final message with image description
+              getFinalMessage();
+
+              // Send the message
+              handleAgentSubmit(e, {
+                data: {
+                  annotations: {
+                    hello: "world",
+                  },
+                },
+              });
+            }
+
             setTextareaHeight("auto"); // Reset height after submission
+            removeImage(); // Clear image after submission
           }}
-          className="p-3 bg-neutral-50 absolute bottom-0 left-0 right-0 z-10 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
+          className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
         >
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+
+          {/* Image preview */}
+          {imagePreview && (
+            <div className="mb-2 relative">
+              <div className="relative inline-block">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="max-w-[200px] max-h-[150px] rounded-lg border border-neutral-200 dark:border-neutral-700"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
+                  aria-label="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
               <Textarea
+                ref={textareaRef}
                 disabled={pendingToolCallConfirmation}
                 placeholder={
                   pendingToolCallConfirmation
@@ -324,13 +494,7 @@ export default function Chat() {
                 }
                 className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2  ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
                 value={agentInput}
-                onChange={(e) => {
-                  handleAgentInputChange(e);
-                  // Auto-resize the textarea
-                  e.target.style.height = "auto";
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                  setTextareaHeight(`${e.target.scrollHeight}px`);
-                }}
+                onChange={handleCustomInputChange}
                 onKeyDown={(e) => {
                   if (
                     e.key === "Enter" &&
@@ -345,7 +509,22 @@ export default function Chat() {
                 rows={2}
                 style={{ height: textareaHeight }}
               />
-              <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
+              <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end gap-1">
+                {/* Image upload button */}
+                <button
+                  type="button"
+                  onClick={triggerImageUpload}
+                  disabled={pendingToolCallConfirmation}
+                  className={`inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 rounded-full p-1.5 h-fit border ${
+                    selectedImage
+                      ? "bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+                      : "bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
+                  }`}
+                  aria-label="Upload image"
+                >
+                  <Image size={16} />
+                </button>
+
                 {isLoading ? (
                   <button
                     type="button"
@@ -359,7 +538,10 @@ export default function Chat() {
                   <button
                     type="submit"
                     className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    disabled={pendingToolCallConfirmation || !agentInput.trim()}
+                    disabled={
+                      pendingToolCallConfirmation ||
+                      (!agentInput.trim() && !selectedImage)
+                    }
                     aria-label="Send message"
                   >
                     <PaperPlaneTilt size={16} />
@@ -370,6 +552,54 @@ export default function Chat() {
           </div>
         </form>
       </div>
+
+      {/* MCP Tools Panel - positioned to extend from right edge of centered chat container */}
+      {showMcpPanel && (
+        <div
+          className="fixed h-[calc(100vh-2rem)] w-80 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 border-l-0 shadow-xl rounded-r-md overflow-hidden z-20"
+          style={{
+            left: `calc(50% + ${512 / 2}px)`, // 50% (center) + half of max-w-lg (256px)
+            top: "1rem",
+          }}
+        >
+          <div className="h-full flex flex-col">
+            {/* Panel Header */}
+            <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3">
+              <div className="flex items-center justify-center h-8 w-8">
+                <Gear size={20} className="text-[#F48120]" />
+              </div>
+              <div className="flex-1">
+                <h2 className="font-semibold text-base">MCP Manager</h2>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {mcpTools.length} tools connected
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="md"
+                shape="square"
+                className="rounded-full h-9 w-9"
+                onClick={() => setShowMcpPanel(false)}
+              >
+                ×
+              </Button>
+            </div>
+
+            {/* Panel Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <Mcp
+                onToolsUpdate={(tools) => {
+                  setMcpTools(tools);
+                  console.log(
+                    `🔗 MCP Tools updated: ${tools.length} tools available`,
+                    tools
+                  );
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -378,10 +608,10 @@ const hasOpenAiKeyPromise = fetch("/check-open-ai-key").then((res) =>
   res.json<{ success: boolean }>()
 );
 
-function HasOpenAIKey() {
-  const hasOpenAiKey = use(hasOpenAiKeyPromise);
+function HasGoogleAIKey() {
+  const hasGoogleAiKey = use(hasOpenAiKeyPromise);
 
-  if (!hasOpenAiKey.success) {
+  if (!hasGoogleAiKey.success) {
     return (
       <div className="fixed top-0 left-0 right-0 z-50 bg-red-500/10 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto p-4">
@@ -407,14 +637,14 @@ function HasOpenAIKey() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
-                  OpenAI API Key Not Configured
+                  Google AI API Key Not Configured
                 </h3>
                 <p className="text-neutral-600 dark:text-neutral-300 mb-1">
                   Requests to the API, including from the frontend UI, will not
-                  work until an OpenAI API key is configured.
+                  work until a Google AI API key is configured.
                 </p>
                 <p className="text-neutral-600 dark:text-neutral-300">
-                  Please configure an OpenAI API key by setting a{" "}
+                  Please configure a Google AI API key by setting a{" "}
                   <a
                     href="https://developers.cloudflare.com/workers/configuration/secrets/"
                     target="_blank"
@@ -425,7 +655,7 @@ function HasOpenAIKey() {
                   </a>{" "}
                   named{" "}
                   <code className="bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-red-600 dark:text-red-400 font-mono text-sm">
-                    OPENAI_API_KEY
+                    GOOGLE_GENERATIVE_AI_API_KEY
                   </code>
                   . <br />
                   You can also use a different model provider by following these{" "}
