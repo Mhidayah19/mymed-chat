@@ -12,7 +12,7 @@ import { Toggle } from "@/components/toggle/Toggle";
 import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import { Mcp } from "@/components/mcp/Mcp";
+import McpSettings from "@/components/mcp/McpSettings";
 
 // Icon imports
 import {
@@ -192,7 +192,7 @@ export default function Chat() {
 
   return (
     <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden relative">
-      <HasGoogleAIKey />
+      <HasOpenAIKey />
 
       {/* Main Chat Container - stays centered */}
       <div className="h-[calc(100vh-2rem)] w-full max-w-lg shadow-xl rounded-md overflow-hidden border border-neutral-300 dark:border-neutral-800 flex flex-col z-10">
@@ -569,9 +569,11 @@ export default function Chat() {
                 <Gear size={20} className="text-[#F48120]" />
               </div>
               <div className="flex-1">
-                <h2 className="font-semibold text-base">MCP Manager</h2>
+                <h2 className="font-semibold text-base">MCP Settings</h2>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {mcpTools.length} tools connected
+                  {mcpTools.length > 0
+                    ? `${mcpTools.length} tools connected`
+                    : "Configure Model Context Protocol servers"}
                 </p>
               </div>
               <Button
@@ -586,8 +588,8 @@ export default function Chat() {
             </div>
 
             {/* Panel Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <Mcp
+            <div className="flex-1 overflow-y-auto p-4">
+              <McpSettings
                 onToolsUpdate={(tools) => {
                   setMcpTools(tools);
                   console.log(
@@ -608,10 +610,10 @@ const hasOpenAiKeyPromise = fetch("/check-open-ai-key").then((res) =>
   res.json<{ success: boolean }>()
 );
 
-function HasGoogleAIKey() {
-  const hasGoogleAiKey = use(hasOpenAiKeyPromise);
+function HasOpenAIKey() {
+  const hasOpenAiKey = use(hasOpenAiKeyPromise);
 
-  if (!hasGoogleAiKey.success) {
+  if (!hasOpenAiKey.success) {
     return (
       <div className="fixed top-0 left-0 right-0 z-50 bg-red-500/10 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto p-4">
@@ -637,14 +639,14 @@ function HasGoogleAIKey() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
-                  Google AI API Key Not Configured
+                  OpenAI API Key Not Configured
                 </h3>
                 <p className="text-neutral-600 dark:text-neutral-300 mb-1">
                   Requests to the API, including from the frontend UI, will not
-                  work until a Google AI API key is configured.
+                  work until an OpenAI API key is configured.
                 </p>
                 <p className="text-neutral-600 dark:text-neutral-300">
-                  Please configure a Google AI API key by setting a{" "}
+                  Please configure an OpenAI API key by setting a{" "}
                   <a
                     href="https://developers.cloudflare.com/workers/configuration/secrets/"
                     target="_blank"
@@ -655,7 +657,7 @@ function HasGoogleAIKey() {
                   </a>{" "}
                   named{" "}
                   <code className="bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-red-600 dark:text-red-400 font-mono text-sm">
-                    GOOGLE_GENERATIVE_AI_API_KEY
+                    OPENAI_API_KEY
                   </code>
                   . <br />
                   You can also use a different model provider by following these{" "}

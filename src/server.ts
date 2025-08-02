@@ -10,12 +10,11 @@ import {
   type StreamTextOnFinishCallback,
   type ToolSet,
 } from "ai";
-import { google } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
 import { processToolCalls } from "./utils";
 import { tools, executions } from "./tools";
-// import { env } from "cloudflare:workers";
 
-const model = google("gemini-1.5-flash");
+const model = openai("gpt-4o-2024-11-20");
 // Cloudflare AI Gateway
 // const openai = createOpenAI({
 //   apiKey: env.OPENAI_API_KEY,
@@ -35,10 +34,6 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
-    // const mcpConnection = await this.mcp.connect(
-    //   "https://path-to-mcp-server/sse"
-    // );
-
     // Collect all tools, including MCP tools
     const allTools = {
       ...tools,
@@ -57,9 +52,13 @@ export class Chat extends AIChatAgent<Env> {
           executions,
         });
 
-        // Stream the AI response using Gemini
+        console.log("Starting AI stream with OpenAI model");
+        console.log("Processed messages count:", processedMessages.length);
+        console.log("API key available:", !!process.env.OPENAI_API_KEY);
+
+        // Stream the AI response using OpenAI
         const result = streamText({
-          model: model as any,
+          model,
           system: `You are a helpful assistant that can do various tasks... 
 
 ${unstable_getSchedulePrompt({ date: new Date() })}
@@ -111,14 +110,14 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/check-open-ai-key") {
-      const hasGoogleAIKey = !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
       return Response.json({
-        success: hasGoogleAIKey,
+        success: hasOpenAIKey,
       });
     }
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       console.error(
-        "GOOGLE_GENERATIVE_AI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
+        "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
       );
     }
     return (
