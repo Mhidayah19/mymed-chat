@@ -2,7 +2,6 @@ import { useEffect, useState, useRef, useCallback, use } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "agents/ai-react";
 import type { Message } from "@ai-sdk/react";
-import type { tools } from "./tools";
 
 // Component imports
 import { Button } from "@/components/button/Button";
@@ -27,12 +26,6 @@ import {
   Gear,
 } from "@phosphor-icons/react";
 
-// List of tools that require human confirmation
-// NOTE: this should match the keys in the executions object in tools.ts
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  "getWeatherInformation",
-];
-
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     // Check localStorage first, default to dark if not found
@@ -43,7 +36,7 @@ export default function Chat() {
   const [textareaHeight, setTextareaHeight] = useState("auto");
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [mcpTools, setMcpTools] = useState<unknown[]>([]);
+  // MCP tools are now handled automatically by the backend agent
   const [showMcpPanel, setShowMcpPanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -177,11 +170,8 @@ export default function Chat() {
   const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
     m.parts?.some(
       (part) =>
-        part.type === "tool-invocation" &&
-        part.toolInvocation.state === "call" &&
-        toolsRequiringConfirmation.includes(
-          part.toolInvocation.toolName as keyof typeof tools
-        )
+        part.type === "tool-invocation" && part.toolInvocation.state === "call"
+      // No tool confirmation needed - all MCP tools are trusted
     )
   );
 
@@ -218,11 +208,9 @@ export default function Chat() {
 
           <div className="flex-1">
             <h2 className="font-semibold text-base">AI Chat Agent</h2>
-            {mcpTools.length > 0 && (
-              <p className="text-xs text-green-600 dark:text-green-400">
-                🔗 {mcpTools.length} MCP tools connected
-              </p>
-            )}
+            <p className="text-xs text-green-600 dark:text-green-400">
+              🔗 MCP tools managed by backend
+            </p>
           </div>
 
           <div className="flex items-center gap-2 mr-2">
@@ -367,10 +355,7 @@ export default function Chat() {
                           if (part.type === "tool-invocation") {
                             const toolInvocation = part.toolInvocation;
                             const toolCallId = toolInvocation.toolCallId;
-                            const needsConfirmation =
-                              toolsRequiringConfirmation.includes(
-                                toolInvocation.toolName as keyof typeof tools
-                              );
+                            const needsConfirmation = false;
 
                             // Skip rendering the card in debug mode
                             if (showDebug) return null;
@@ -571,9 +556,7 @@ export default function Chat() {
               <div className="flex-1">
                 <h2 className="font-semibold text-base">MCP Settings</h2>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {mcpTools.length > 0
-                    ? `${mcpTools.length} tools connected`
-                    : "Configure Model Context Protocol servers"}
+                  Configure Model Context Protocol servers
                 </p>
               </div>
               <Button
@@ -589,15 +572,7 @@ export default function Chat() {
 
             {/* Panel Content */}
             <div className="flex-1 overflow-y-auto p-4">
-              <McpSettings
-                onToolsUpdate={(tools) => {
-                  setMcpTools(tools);
-                  console.log(
-                    `🔗 MCP Tools updated: ${tools.length} tools available`,
-                    tools
-                  );
-                }}
-              />
+              <McpSettings agent={agent} />
             </div>
           </div>
         </div>

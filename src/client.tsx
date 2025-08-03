@@ -8,17 +8,26 @@ import OAuthCallbackPage from "@/components/oauth/OAuthCallbackPage";
 
 const root = createRoot(document.getElementById("app")!);
 
-root.render(
-  <StrictMode>
-    <Providers>
-      <div className="bg-neutral-50 text-base text-neutral-900 antialiased transition-colors selection:bg-blue-700 selection:text-white dark:bg-neutral-950 dark:text-neutral-100">
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<App />} />
-            <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
-          </Routes>
-        </BrowserRouter>
-      </div>
-    </Providers>
-  </StrictMode>
-);
+// Check if this is an agent framework route
+const isAgentRoute = window.location.pathname.startsWith("/agents/");
+
+if (isAgentRoute) {
+  // Don't render React app for agent routes - let the worker handle them
+  // This happens when the OAuth callback redirects to /agents/chat/default/callback/*
+  window.location.reload();
+} else {
+  root.render(
+    <StrictMode>
+      <Providers>
+        <div className="bg-neutral-50 text-base text-neutral-900 antialiased transition-colors selection:bg-blue-700 selection:text-white dark:bg-neutral-950 dark:text-neutral-100">
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<App />} />
+              <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+            </Routes>
+          </BrowserRouter>
+        </div>
+      </Providers>
+    </StrictMode>
+  );
+}
