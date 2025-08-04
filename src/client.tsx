@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./app";
 import { Providers } from "@/providers";
-import OAuthCallbackPage from "@/components/oauth/OAuthCallbackPage";
+// import OAuthCallbackPage from "./components/oauth/OAuthCallbackPage";
 
 const root = createRoot(document.getElementById("app")!);
 
@@ -23,7 +23,7 @@ if (isAgentRoute) {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<App />} />
-              <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+              {/* <Route path="/agents/chat/default/callback/*" element={<OAuthCallbackPage />} /> */}
             </Routes>
           </BrowserRouter>
         </div>

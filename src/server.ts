@@ -328,40 +328,61 @@ export class Chat extends AIChatAgent<Env> {
 
     if (reqUrl.pathname.endsWith("add-mcp") && request.method === "POST") {
       try {
-        const mcpServer = (await request.json()) as {
-          url: string;
-          name: string;
-        };
-        console.log("Received MCP server request:", mcpServer);
-        console.log("MCP URL being processed:", JSON.stringify(mcpServer.url));
-        console.log("MCP URL type:", typeof mcpServer.url);
-        console.log("MCP URL length:", mcpServer.url?.length);
-
-        // Actually add the MCP server to the agent
+        const mcpServer = (await request.json()) as { url: string; name: string };
+        
         const host = reqUrl.origin;
-        const result = await this.addMcpServer(
-          mcpServer.name,
-          mcpServer.url,
-          host
-        );
-        console.log("✅ MCP server added successfully:", result);
-        console.log("🔍 Result type:", typeof result);
-        console.log("🔍 Result keys:", Object.keys(result || {}));
-        console.log("🔍 Has authUrl?", result?.authUrl);
-        console.log("🔍 Full result JSON:", JSON.stringify(result, null, 2));
+        // const agentPath = "/agents/chat/default/oauth/callback";
+        const callbackHost = `${host}`;
 
-        return new Response(JSON.stringify({ success: true, result }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
+        const result = await this.addMcpServer(
+          mcpServer.name, 
+          mcpServer.url, 
+          callbackHost
+        );
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          result 
+        }), { 
+          status: 200, 
+          headers: { "Content-Type": "application/json" } 
         });
       } catch (error) {
-        console.error("❌ Error processing MCP request:", error);
         return new Response(
-          JSON.stringify({ success: false, error: (error as Error).message }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          }
+          JSON.stringify({ 
+            success: false, 
+            error: (error as Error).message 
+          }),
+          { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Handle OAuth callback
+    if (reqUrl.pathname.endsWith("oauth/callback")) {
+      try {
+        const code = reqUrl.searchParams.get('code');
+        const state = reqUrl.searchParams.get('state');
+
+        if (!code) {
+          return new Response("Missing authorization code", { status: 400 });
+        }
+
+        // Validate state if needed
+        // You might want to check if the state matches a previously generated state
+
+        // Let the MCP manager handle the token exchange
+        await this.mcp.handleCallbackRequest(request);
+
+        return new Response(JSON.stringify({ status: 'success' }), { 
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        console.error('OAuth callback error:', error);
+        return new Response(
+          `Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { status: 400 }
         );
       }
     }
@@ -430,19 +451,6 @@ export class Chat extends AIChatAgent<Env> {
           }
         );
       }
-    }
-
-    // Log all requests for debugging
-    console.log("📥 Request:", request.method, reqUrl.pathname);
-
-    // Special logging for callback requests
-    if (reqUrl.pathname.includes("/callback/")) {
-      console.log("🔄 OAuth callback details:");
-      console.log("  - Full URL:", reqUrl.toString());
-      console.log(
-        "  - Search params:",
-        Object.fromEntries(reqUrl.searchParams)
-      );
     }
 
     // Let the framework handle other requests by calling the parent method
