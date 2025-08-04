@@ -12,6 +12,7 @@ import {
 } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { processToolCalls } from "./utils";
+import { z } from "zod";
 
 const model = openai("gpt-4o-2024-11-20");
 // Cloudflare AI Gateway
@@ -24,6 +25,53 @@ const model = openai("gpt-4o-2024-11-20");
  * Chat Agent implementation that handles real-time AI chat interactions
  */
 export class Chat extends AIChatAgent<Env> {
+
+  // Define use_prompt tool as class property
+  private usePromptTool = {
+    use_prompt: {
+      description: "Use an MCP prompt with provided arguments",
+      parameters: z.object({
+        name: z.string().describe("Prompt name"),
+        serverId: z.string().describe("Server ID"),
+        arguments: z.record(z.any()).optional().describe("Prompt arguments")
+      }),
+      execute: async (args: { name: string; serverId: string; arguments?: any }) => {
+        try {
+          console.log("🚀 Calling getPrompt with:", { 
+            name: args.name, 
+            serverId: args.serverId, 
+            arguments: args.arguments 
+          });
+
+          // @ts-ignore
+          // This line is a workaround to fix the type error
+          // TODO: fix the type error for getPrompt
+          const result = await this.mcp.getPrompt({
+            name: args.name,
+            serverId: args.serverId,
+            arguments: args.arguments || {}
+          });
+          
+          console.log("✅ getPrompt result:", result);
+          return result;
+        } catch (error) {
+          console.error("❌ getPrompt error:", error);
+          
+          // Try to provide more helpful error info
+          const errorMsg = (error as Error).message;
+          if (errorMsg.includes('Invalid arguments')) {
+            return { 
+              error: `Prompt "${args.name}" requires specific arguments. Error: ${errorMsg}`,
+              suggestion: "The MCP server is expecting different or additional arguments. Check the server documentation for the correct argument structure."
+            };
+          }
+          
+          return { error: errorMsg };
+        }
+      }
+    }
+  };
+  
   /**
    * Handles incoming chat messages and manages the response stream
    * @param onFinish - Callback function executed when streaming completes
@@ -37,30 +85,39 @@ export class Chat extends AIChatAgent<Env> {
     const mcpTools = this.mcp.unstable_getAITools();
     console.log("🔧 Available MCP tools:", Object.keys(mcpTools));
 
-    // Only filter out tools with known schema issues
+    // Filter out problematic tools
+    // updateBooking is a problematic tool, so we skip it
+    // Need to fix this issue in the future
     const validMcpTools: any = {};
     for (const [toolName, toolDef] of Object.entries(mcpTools)) {
       try {
-        // Skip the problematic updateBooking tool for now
-        if (toolName.includes("updateBooking")) {
-          console.warn(
-            `⚠️ Skipping tool with known schema issues: ${toolName}`
-          );
+        // Skip the problematic updateBooking tool
+        if (toolName.includes("updateBooking") || toolName.includes("UOojYM9k_updateBooking")) {
+          console.warn(`⚠️ Skipping tool with schema issues: ${toolName}`);
+          continue;
+        }
+        
+        // Check for invalid array schemas (missing items)
+        const toolDefStr = JSON.stringify(toolDef);
+        if (toolDefStr.includes('"type":"array"') && !toolDefStr.includes('"items"')) {
+          console.warn(`⚠️ Skipping tool with invalid array schema: ${toolName}`);
           continue;
         }
 
-        // Basic validation - check if the tool definition looks valid
-        if (toolDef && typeof toolDef === "object") {
-          validMcpTools[toolName] = toolDef;
-        }
+        validMcpTools[toolName] = toolDef;
       } catch (error) {
-        console.warn(`⚠️ Skipping invalid MCP tool: ${toolName}`, error);
+        console.warn(`⚠️ Skipping invalid tool: ${toolName}`, error);
       }
     }
-
     console.log("✅ Valid MCP tools:", Object.keys(validMcpTools));
+
+    // Collect all prompts from MCP servers
+    const mcpPrompts = this.mcp.listPrompts();
+    console.log("📋 Available MCP prompts:", mcpPrompts);
+
     const allTools = {
       ...validMcpTools,
+      ...this.usePromptTool,
     };
 
     // Create a streaming response that handles both text and tool outputs
@@ -79,6 +136,25 @@ export class Chat extends AIChatAgent<Env> {
         console.log("Processed messages count:", processedMessages.length);
         console.log("API key available:", !!process.env.OPENAI_API_KEY);
 
+        // Build prompts context for AI
+        let promptsContext = "";
+        if (mcpPrompts.length > 0) {
+          promptsContext = `\n\nAvailable MCP Prompts:\n${mcpPrompts
+            .map((prompt) => {
+              let argDetails = "";
+              if (prompt.arguments && prompt.arguments.length > 0) {
+                const argList = prompt.arguments.map((arg: any) => {
+                  const required = arg.required ? " (required)" : " (optional)";
+                  const desc = arg.description ? ` - ${arg.description}` : "";
+                  return `    • ${arg.name}${required}${desc}`;
+                }).join("\n");
+                argDetails = `\n  Arguments:\n${argList}`;
+              }
+              return `- ${prompt.name}: ${prompt.description || "No description"} (Server: ${prompt.serverId || "unknown"})${argDetails}`;
+            })
+            .join("\n")}\n\nWhen using prompts with the use_prompt tool, you MUST provide all required arguments. For create-consumption-from-image, if no specific arguments are provided, use: {"filename": "image.jpg"} as a default.`;
+        }
+
         // Stream the AI response using OpenAI
         const result = streamText({
           model,
@@ -86,7 +162,7 @@ export class Chat extends AIChatAgent<Env> {
 
           ${unstable_getSchedulePrompt({ date: new Date() })}
 
-          If the user asks to schedule a task, use the schedule tool to schedule the task.
+          If the user asks to schedule a task, use the schedule tool to schedule the task.${promptsContext}
           `,
           messages: processedMessages,
           tools: allTools,
@@ -383,6 +459,31 @@ export class Chat extends AIChatAgent<Env> {
         return new Response(
           `Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
           { status: 400 }
+        );
+      }
+    }
+
+    // Handle listing MCP prompts
+    if (reqUrl.pathname.endsWith("list-prompts") && request.method === "GET") {
+      try {
+        console.log("📋 Listing MCP prompts");
+        const prompts = this.mcp.listPrompts();
+        console.log("✅ Found prompts:", prompts);
+        return new Response(
+          JSON.stringify({ success: true, prompts }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        console.error("❌ Error listing MCP prompts:", error);
+        return new Response(
+          JSON.stringify({ success: false, error: (error as Error).message }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }
         );
       }
     }

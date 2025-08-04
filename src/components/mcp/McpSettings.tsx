@@ -28,6 +28,7 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [servers, setServers] = useState<Server[]>([]);
   const [activeServerId, setActiveServerId] = useState<string | null>(null);
+  const [prompts, setPrompts] = useState<any[]>([]);
 
   // MCP connection is now handled by the backend agent
   // const activeServer = servers.find((s) => s.id === activeServerId);
@@ -74,7 +75,31 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
     };
 
     loadConnectedServers();
+    loadPrompts();
   }, [agent]);
+
+  // Load prompts from backend
+  const loadPrompts = async () => {
+    try {
+      const response = await agentFetch({
+        agent: "chat",
+        host: agent.host,
+        name: "default",
+        path: "list-prompts",
+      });
+
+      if (response.ok) {
+        const result = (await response.json()) as {
+          success: boolean;
+          prompts: any[];
+        };
+        console.log("📋 Available MCP prompts:", result.prompts);
+        setPrompts(result.prompts || []);
+      }
+    } catch (error) {
+      console.error("❌ Error loading prompts:", error);
+    }
+  };
 
   const handleAddServer = () => {
     setIsModalOpen(true);
@@ -472,6 +497,39 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
             <Network className="w-8 h-8 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
             <p className="text-sm">No servers configured</p>
             <p className="text-xs text-gray-400">Add a server to get started</p>
+          </div>
+        )}
+
+        {/* Prompts Section */}
+        {prompts.length > 0 && (
+          <div className="mt-8 border-t border-gray-200 dark:border-neutral-600 pt-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+              Available Prompts ({prompts.length})
+            </h3>
+            <div className="space-y-2">
+              {prompts.map((prompt, index) => (
+                <div
+                  key={`${prompt.name}-${prompt.serverId || index}`}
+                  className="p-3 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-md"
+                >
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {prompt.name}
+                    </div>
+                    {prompt.description && (
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        {prompt.description}
+                      </div>
+                    )}
+                    {prompt.serverId && (
+                      <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        Server: {prompt.serverId}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
