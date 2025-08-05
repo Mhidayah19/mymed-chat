@@ -9,12 +9,13 @@ import {
   streamText,
   type StreamTextOnFinishCallback,
   type ToolSet,
+  type CoreMessage,
 } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { processToolCalls } from "./utils";
 import { z } from "zod";
 
-const model = openai("gpt-4o-2024-11-20");
+const model = openai("gpt-4o-2024-11-20"); // Vision-capable model
 // Cloudflare AI Gateway
 // const openai = createOpenAI({
 //   apiKey: env.OPENAI_API_KEY,
@@ -83,7 +84,7 @@ export class Chat extends AIChatAgent<Env> {
   ) {
     // Collect all tools, including MCP tools (cleaned cache)
     const mcpTools = this.mcp.unstable_getAITools();
-    console.log("🔧 Available MCP tools:", Object.keys(mcpTools));
+    // console.log("🔧 Available MCP tools:", Object.keys(mcpTools));
 
     // Filter out problematic tools
     // updateBooking is a problematic tool, so we skip it
@@ -109,11 +110,11 @@ export class Chat extends AIChatAgent<Env> {
         console.warn(`⚠️ Skipping invalid tool: ${toolName}`, error);
       }
     }
-    console.log("✅ Valid MCP tools:", Object.keys(validMcpTools));
+    // console.log("✅ Valid MCP tools:", Object.keys(validMcpTools));
 
     // Collect all prompts from MCP servers
     const mcpPrompts = this.mcp.listPrompts();
-    console.log("📋 Available MCP prompts:", mcpPrompts);
+    // console.log("📋 Available MCP prompts:", mcpPrompts);
 
     const allTools = {
       ...validMcpTools,
@@ -131,11 +132,41 @@ export class Chat extends AIChatAgent<Env> {
           tools: allTools,
           executions: {},
         });
+        console.log("Processed messages:", processedMessages);
 
-        console.log("Starting AI stream with OpenAI model");
-        console.log("Processed messages count:", processedMessages.length);
-        console.log("API key available:", !!process.env.OPENAI_API_KEY);
-
+        // Process image data in messages and convert to multimodal format
+        const processedMessagesWithImages = processedMessages.map((message) => {
+          // Check if message content contains JSON with image data
+          if (typeof message.content === 'string') {
+            try {
+              const parsed = JSON.parse(message.content);
+              if (parsed.image && parsed.image.image) {
+                // Convert to CoreMessage format with multimodal content
+                return {
+                  role: 'user' as const,
+                  content: [
+                    {
+                      type: "text",
+                      text: parsed.text || "Please analyze this image"
+                    },
+                    {
+                      type: "image",
+                      image: `data:${parsed.image.mimeType};base64,${parsed.image.image}`
+                    }
+                  ]
+                };
+              }
+            } catch (error) {
+              // Not JSON, continue with regular processing
+            }
+          }
+          
+          // For non-image messages, convert to CoreMessage format
+          return {
+            role: message.role as 'user' | 'system' | 'assistant',
+            content: message.content
+          };
+        });
         // Build prompts context for AI
         let promptsContext = "";
         if (mcpPrompts.length > 0) {
@@ -152,19 +183,20 @@ export class Chat extends AIChatAgent<Env> {
               }
               return `- ${prompt.name}: ${prompt.description || "No description"} (Server: ${prompt.serverId || "unknown"})${argDetails}`;
             })
-            .join("\n")}\n\nWhen using prompts with the use_prompt tool, you MUST provide all required arguments. For create-consumption-from-image, if no specific arguments are provided, use: {"filename": "image.jpg"} as a default.`;
+            .join("\n")}\n\nWhen using prompts with the use_prompt tool, you MUST provide all required arguments. Only use MCP prompts when explicitly requested by the user.`;
         }
 
         // Stream the AI response using OpenAI
         const result = streamText({
           model,
-          system: `You are a helpful assistant that can do various tasks... 
+          system: `You are a helpful assistant that can analyze images and do various tasks.
 
           ${unstable_getSchedulePrompt({ date: new Date() })}
 
           If the user asks to schedule a task, use the schedule tool to schedule the task.${promptsContext}
-          `,
-          messages: processedMessages,
+          
+          IMPORTANT: Only use MCP prompts when the user explicitly asks for them by name or function. For general image analysis or conversation, respond directly using your built-in capabilities without automatically invoking MCP tools.`,
+          messages: processedMessagesWithImages as CoreMessage[],
           tools: allTools,
           experimental_telemetry: {
             isEnabled: true,
