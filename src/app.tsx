@@ -95,19 +95,6 @@ export default function Chat() {
     fileInputRef.current?.click();
   };
 
-  // Convert image to base64 for API submission
-  const processImageForSubmission = async (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64Data = result.split(",")[1];
-        resolve(base64Data);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
   const agent = useAgent({
     agent: "chat",
   });
@@ -137,6 +124,33 @@ export default function Chat() {
     setTextareaHeight(`${e.target.scrollHeight}px`);
   };
 
+  // Function to get the final message with image description
+  const getFinalMessage = () => {
+    let message = agentInput;
+    if (selectedImage) {
+      const imageDescription = `[Image uploaded: ${selectedImage.name}]`;
+      message = agentInput.trim()
+        ? `${agentInput} ${imageDescription}`
+        : `I've uploaded an image (${selectedImage.name}) for you to analyze.`;
+    }
+    return message;
+  };
+
+  // Function to read image format and console log it
+  const logImageFormat = (file: File) => {
+    console.log("=== Image Format Information ===");
+    console.log("File name:", file.name);
+    console.log("File type:", file.type);
+    console.log("File size:", file.size, "bytes");
+    console.log("File size (KB):", (file.size / 1024).toFixed(2), "KB");
+    console.log(
+      "File size (MB):",
+      (file.size / (1024 * 1024)).toFixed(2),
+      "MB"
+    );
+    console.log("Last modified:", new Date(file.lastModified).toLocaleString());
+    console.log("================================");
+  };
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -350,37 +364,80 @@ export default function Chat() {
           onSubmit={async (e) => {
             e.preventDefault();
 
-            const shouldSend = agentInput.trim().length > 0 || !!selectedImage;
-            if (!shouldSend) return;
-
+            // Prepare message content with image data
             let messageContent = agentInput;
+            console.log('messageContent', messageContent);
 
-            // Process image if present
             if (selectedImage) {
-              const base64 = await processImageForSubmission(selectedImage);
-              
-              // Create multimodal message format
-              messageContent = JSON.stringify({
-                text: agentInput || "",
-                image: {
-                  image: base64,
-                  mimeType: selectedImage.type,
-                },
+              const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const result = reader.result as string;
+                  resolve(result); // Keep the full data URL with prefix
+                };
+                reader.readAsDataURL(selectedImage);
               });
 
-              // Update input state with image data and submit
+              // Update the agent input to be just the text
+              // The image will be handled separately through the multimodal message format
+              messageContent = agentInput || "Please analyze this image";
+              
+              // We need to create a multimodal message, but the current setup sends as text
+              // The backend needs to be updated to handle multimodal format
+              console.log('Image base64 data URL:', base64.substring(0, 100) + '...');
+            }
+            console.log('messageContent', messageContent);
+
+
+
+            // Send the message with image data
+            if (messageContent.trim() || selectedImage) {
+              // Log image format if image is selected
+              if (selectedImage) {
+                logImageFormat(selectedImage);
+              }
+
+              // For now, let's create a combined message that the backend can parse
+              // This is a temporary solution until proper multimodal support is added
+              if (selectedImage) {
+                const base64Data = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const result = reader.result as string;
+                    const base64Only = result.split(",")[1];
+                    resolve(base64Only);
+                  };
+                  reader.readAsDataURL(selectedImage);
+                });
+
+                messageContent = `${agentInput || "Please analyze this image"}
+
+[IMAGE_DATA]
+type: ${selectedImage.type}
+name: ${selectedImage.name}
+data: ${base64Data}
+[/IMAGE_DATA]`;
+              }
+
+              // Update the agent input with the prepared message content
               handleAgentInputChange({
                 target: { value: messageContent }
               } as React.ChangeEvent<HTMLTextAreaElement>);
 
-              setTimeout(() => handleAgentSubmit(e), 10);
-            } else {
-              handleAgentSubmit(e);
+              // Use setTimeout to ensure state update is processed before submission
+              setTimeout(() => {
+                handleAgentSubmit(e, {
+                  data: {
+                    annotations: {
+                      imageIncluded: !!selectedImage,
+                    },
+                  },
+                });
+              }, 10);
             }
 
-            // Reset form
-            setTextareaHeight("auto");
-            removeImage();
+            setTextareaHeight("auto"); // Reset height after submission
+            removeImage(); // Clear image after submission
           }}
           className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
         >
