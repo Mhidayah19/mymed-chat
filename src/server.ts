@@ -277,6 +277,27 @@ export class Chat extends AIChatAgent<Env> {
         },
       },
 
+      resetBookingAnalysisForTesting: {
+        description:
+          "Reset booking analysis state to allow auto-trigger to run again (for testing purposes)",
+        parameters: z.object({}),
+        execute: async () => {
+          try {
+            const bookingAgent = await getAgentByName(
+              this.env.BookingAnalysisAgent,
+              "main-analyzer"
+            );
+            return await bookingAgent.resetForTesting();
+          } catch (error) {
+            console.error(
+              "Error calling BookingAnalysisAgent.resetForTesting:",
+              error
+            );
+            return { error: (error as Error).message };
+          }
+        },
+      },
+
       executeBookingAnalysis: {
         description:
           "Execute booking analysis directly from MCP getBooking tool",
@@ -558,6 +579,166 @@ export class Chat extends AIChatAgent<Env> {
     });
 
     return dataStreamResponse;
+  }
+
+  // Internal method to execute booking analysis (for auto-triggering)
+  private async executeBookingAnalysisInternal() {
+    try {
+      console.log("🚀 Starting internal booking analysis execution...");
+      
+      // Check database and MCP state
+      const dbServers = this.sql`SELECT * FROM cf_agents_mcp_servers`;
+      console.log("📊 Database:", dbServers.length, "stored servers");
+
+      // Get MCP servers from Chat agent
+      const mcpState = this.getMcpServers();
+      
+      const servers = mcpState.servers || {};
+      console.log("🔧 Available MCP servers:", Object.keys(servers));
+      
+      // Check MCP client manager state
+      console.log("🔗 Active connections:", Object.keys(this.mcp.mcpConnections || {}).length);
+
+      // Find a server with booking tools
+      let bookingTool = null;
+      let targetServerId = null;
+
+      for (const [serverId, serverData] of Object.entries(servers)) {
+        console.log(`🔍 Checking server ${serverId}:`, serverData);
+        if (
+          serverData &&
+          typeof serverData === "object" &&
+          "state" in serverData &&
+          serverData.state === "ready"
+        ) {
+          try {
+            const serverTools = this.mcp.listTools();
+            console.log(`📋 Server ${serverId} has ${serverTools.length} tools available`);
+
+            const bookingToolFound = serverTools.find(
+              (tool: any) =>
+                tool.name &&
+                (tool.name.toLowerCase().includes("booking") ||
+                  tool.name.toLowerCase().includes("getbooking") ||
+                  tool.name === "getBookings")
+            );
+
+            if (bookingToolFound) {
+              bookingTool = bookingToolFound;
+              targetServerId = serverId;
+              console.log(
+                `✅ Found booking tool "${bookingToolFound.name}" on server ${serverId}`
+              );
+              break;
+            }
+          } catch (toolListError) {
+            console.warn(
+              `⚠️ Could not list tools for server ${serverId}:`,
+              toolListError
+            );
+          }
+        }
+      }
+
+      if (!bookingTool || !targetServerId) {
+        console.warn(
+          "⚠️ No booking tool found on any connected MCP server"
+        );
+        return {
+          success: false,
+          message: "No MCP booking tool available",
+        };
+      }
+
+      console.log("🔄 Executing booking tool...");
+      console.log(
+        `📡 Calling tool: ${bookingTool.name} on server: ${targetServerId}`
+      );
+
+      // Use Chat agent's MCP client to call the tool
+      const mcpResult = await this.mcp.callTool({
+        serverId: targetServerId,
+        name: bookingTool.name,
+        arguments: {},
+      });
+
+      console.log("📊 MCP booking result received successfully (", typeof mcpResult === 'object' && mcpResult ? Object.keys(mcpResult).join(', ') : 'data', ")");
+
+      // Process the result and send to BookingAnalysisAgent for analysis
+      const bookingAgent = await getAgentByName(
+        this.env.BookingAnalysisAgent,
+        "main-analyzer"
+      );
+
+      // Extract booking data from MCP result
+      let bookingData: any[] = [];
+      
+      if (mcpResult && typeof mcpResult === "object") {
+        // Handle direct array
+        if (Array.isArray(mcpResult)) {
+          bookingData = mcpResult;
+        } 
+        // Handle MCP content structure: { content: [{ type: "text", text: "..." }] }
+        else if ((mcpResult as any).content && Array.isArray((mcpResult as any).content)) {
+          const content = (mcpResult as any).content;
+          for (const item of content) {
+            if (item.type === "text" && item.text) {
+              try {
+                const parsed = JSON.parse(item.text);
+                if (parsed.bookings && Array.isArray(parsed.bookings)) {
+                  bookingData = parsed.bookings;
+                  break;
+                } else if (parsed.data && Array.isArray(parsed.data)) {
+                  bookingData = parsed.data;
+                  break;
+                } else if (Array.isArray(parsed)) {
+                  bookingData = parsed;
+                  break;
+                }
+              } catch (parseError) {
+                console.warn("⚠️ Failed to parse booking content:", parseError);
+              }
+            }
+          }
+        }
+        // Handle direct .data property
+        else if (
+          (mcpResult as any).data &&
+          Array.isArray((mcpResult as any).data)
+        ) {
+          bookingData = (mcpResult as any).data;
+        } 
+        // Handle direct .bookings property
+        else if (
+          (mcpResult as any).bookings &&
+          Array.isArray((mcpResult as any).bookings)
+        ) {
+          bookingData = (mcpResult as any).bookings;
+        }
+      }
+      
+      console.log("📊 Extracted", bookingData.length, "bookings from MCP");
+
+      if (bookingData.length > 0) {
+        // Send the booking data to BookingAnalysisAgent for processing
+        const analysisResult = await bookingAgent.setBookings(bookingData);
+        return {
+          ...analysisResult,
+          source: "mcp",
+          toolUsed: bookingTool.name,
+          message: `Successfully analyzed ${bookingData.length} bookings from MCP`,
+          autoTriggered: true,
+        };
+      } else {
+        return {
+          success: false,
+          message: "No booking data received from MCP tool",
+        };
+      }
+    } catch (error) {
+      console.error("Error executing internal booking analysis:", error);
+      return { error: (error as Error).message };
+    }
   }
 
   async onRequest(request: Request): Promise<Response> {
@@ -842,6 +1023,30 @@ export class Chat extends AIChatAgent<Env> {
         return new Response(
           `Token exchange failed: ${error instanceof Error ? error.message : "Unknown error"}`,
           { status: 400 }
+        );
+      }
+    }
+
+    // Handle internal booking analysis trigger (for auto-execution)
+    if (reqUrl.pathname.endsWith("execute-booking-analysis") && request.method === "POST") {
+      try {
+        console.log("🎯 Internal booking analysis trigger received");
+        
+        // Execute the booking analysis directly
+        const result = await this.executeBookingAnalysisInternal();
+        
+        return new Response(JSON.stringify({ success: true, result }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        console.error("❌ Error in internal booking analysis trigger:", error);
+        return new Response(
+          JSON.stringify({ success: false, error: (error as Error).message }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }
         );
       }
     }

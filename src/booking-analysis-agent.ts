@@ -29,7 +29,7 @@ type BookingAnalysisState = {
   totalValue: number;
 };
 
-export class BookingAnalysisAgent extends Agent<any, BookingAnalysisState> {
+export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
   initialState: BookingAnalysisState = {
     bookings: [],
     lastAnalysis: null,
@@ -41,8 +41,92 @@ export class BookingAnalysisAgent extends Agent<any, BookingAnalysisState> {
   async onStart() {
     console.log("📊 BookingAnalysisAgent started - ready for analysis requests");
     
-    // Auto-execution disabled - analysis now triggered via Chat agent's executeBookingAnalysis tool
-    // This prevents mock data fallback since Chat agent handles MCP connections
+    // Start monitoring for MCP connections and auto-execute analysis
+    await this.startMcpMonitoring();
+  }
+
+  private async startMcpMonitoring() {
+    console.log("🔍 Starting MCP server monitoring for automatic booking analysis");
+    
+    // Check for existing MCP connections every 10 seconds
+    const checkInterval = setInterval(async () => {
+      try {
+        await this.checkAndExecuteAnalysis();
+      } catch (error) {
+        console.error("❌ Error during MCP monitoring check:", error);
+      }
+    }, 10000); // Check every 10 seconds
+
+    // Initial check immediately
+    setTimeout(() => this.checkAndExecuteAnalysis(), 2000); // Wait 2 seconds for system to initialize
+    
+    // Store interval for cleanup if needed
+    (this as any).mcpMonitoringInterval = checkInterval;
+  }
+
+  private async checkAndExecuteAnalysis() {
+    try {
+      console.log("🔍 [AUTO-CHECK] Checking for MCP connections...");
+      
+      // Get Chat agent to check for MCP connections
+      const chatAgent = await this.env.Chat.get(this.env.Chat.idFromName("default"));
+      
+      // Make a request to check MCP servers
+      const mcpCheckResponse = await chatAgent.fetch(new Request("https://dummy.com/list-mcp", {
+        method: "GET"
+      }));
+
+      if (mcpCheckResponse.ok) {
+        const mcpData = await mcpCheckResponse.json() as { servers?: Record<string, any> };
+        const servers = mcpData.servers || {};
+        const connectedServers = Object.keys(servers).filter(
+          serverId => servers[serverId]?.state === "ready"
+        );
+
+        console.log(`🔗 [AUTO-CHECK] Found ${connectedServers.length} connected MCP servers`);
+        console.log(`📊 [AUTO-CHECK] Last analysis: ${this.state.lastAnalysis ? 'EXISTS' : 'NONE'}`);
+
+        if (connectedServers.length > 0 && !this.state.lastAnalysis) {
+          console.log("🚀 [AUTO-TRIGGER] MCP servers detected - triggering automatic booking analysis");
+          await this.triggerBookingAnalysis();
+        } else if (connectedServers.length > 0) {
+          console.log("ℹ️ [AUTO-SKIP] MCP servers available but analysis already completed");
+        } else {
+          console.log("⏳ [AUTO-WAIT] No ready MCP servers yet, will check again in 10s");
+        }
+      } else {
+        console.log("❌ [AUTO-CHECK] Failed to get MCP server list");
+      }
+    } catch (error) {
+      // Silently handle errors to avoid spam - MCP might not be ready yet
+      if (error instanceof Error && !error.message.includes("fetch")) {
+        console.warn("⚠️ [AUTO-ERROR] MCP monitoring check failed:", error.message);
+      }
+    }
+  }
+
+  private async triggerBookingAnalysis() {
+    try {
+      console.log("📊 Auto-triggering booking analysis via Chat agent");
+      
+      // Get Chat agent
+      const chatAgent = await this.env.Chat.get(this.env.Chat.idFromName("default"));
+      
+      // Trigger the executeBookingAnalysis via internal fetch
+      const analysisResponse = await chatAgent.fetch(new Request("https://dummy.com/execute-booking-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoTrigger: true })
+      }));
+
+      if (analysisResponse.ok) {
+        console.log("✅ Automatic booking analysis completed successfully");
+      } else {
+        console.warn("⚠️ Automatic booking analysis failed - will retry on next check");
+      }
+    } catch (error) {
+      console.error("❌ Failed to trigger automatic booking analysis:", error);
+    }
   }
 
   // Note: executeBookingAnalysis removed - Chat agent now handles all MCP communication
@@ -271,6 +355,23 @@ export class BookingAnalysisAgent extends Agent<any, BookingAnalysisState> {
     };
   }
 
+  @unstable_callable({ description: "Reset analysis state to allow auto-trigger to run again" })
+  async resetForTesting() {
+    console.log("🧪 [TEST] Resetting analysis state for testing auto-trigger");
+    this.setState({
+      ...this.state,
+      lastAnalysis: null,
+      analysisResult: null,
+      totalBookings: 0,
+      totalValue: 0,
+      bookings: []
+    });
+    return { 
+      success: true, 
+      message: "Analysis state reset - auto-trigger will run again on next MCP detection" 
+    };
+  }
+
   // REST endpoints for direct access
   async onRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -288,6 +389,9 @@ export class BookingAnalysisAgent extends Agent<any, BookingAnalysisState> {
 
         case url.pathname.endsWith("/refresh"):
           return Response.json(await this.refreshAnalysis());
+
+        case url.pathname.endsWith("/reset"):
+          return Response.json(await this.resetForTesting());
       }
     }
 
