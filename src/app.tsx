@@ -312,7 +312,11 @@ export default function Chat() {
                                 >
                                   <MemoizedMarkdown
                                     id={`${m.id}-${i}`}
-                                    content={typeof part.text === "string" ? part.text : ""}
+                                    content={
+                                      typeof part.text === "string"
+                                        ? part.text
+                                        : ""
+                                    }
                                   />
                                 </Card>
                                 <p
@@ -366,7 +370,7 @@ export default function Chat() {
 
             // Prepare message content with image data
             let messageContent = agentInput;
-            console.log('messageContent', messageContent);
+            console.log("messageContent", messageContent);
 
             if (selectedImage) {
               const base64 = await new Promise<string>((resolve) => {
@@ -381,14 +385,15 @@ export default function Chat() {
               // Update the agent input to be just the text
               // The image will be handled separately through the multimodal message format
               messageContent = agentInput || "Please analyze this image";
-              
+
               // We need to create a multimodal message, but the current setup sends as text
               // The backend needs to be updated to handle multimodal format
-              console.log('Image base64 data URL:', base64.substring(0, 100) + '...');
+              console.log(
+                "Image base64 data URL:",
+                base64.substring(0, 100) + "..."
+              );
             }
-            console.log('messageContent', messageContent);
-
-
+            console.log("messageContent", messageContent);
 
             // Send the message with image data
             if (messageContent.trim() || selectedImage) {
@@ -421,7 +426,7 @@ data: ${base64Data}
 
               // Update the agent input with the prepared message content
               handleAgentInputChange({
-                target: { value: messageContent }
+                target: { value: messageContent },
               } as React.ChangeEvent<HTMLTextAreaElement>);
 
               // Use setTimeout to ensure state update is processed before submission

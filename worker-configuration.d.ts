@@ -5,6 +5,8 @@ declare namespace Cloudflare {
 	interface Env {
 		OPENAI_API_KEY: string;
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
+		CounterAgent: DurableObjectNamespace<import("./src/counter-agent").CounterAgent>;
+		BookingAnalysisAgent: DurableObjectNamespace<import("./src/booking-analysis-agent").BookingAnalysisAgent>;
 	}
 }
 interface Env extends Cloudflare.Env {}

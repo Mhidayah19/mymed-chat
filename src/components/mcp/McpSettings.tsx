@@ -229,9 +229,35 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
     }
   };
 
-  const handleDisconnectServer = () => {
-    // TODO: Call backend API to disconnect MCP server
-    setActiveServerId(null);
+  const handleDisconnectServer = async (serverId: string) => {
+    try {
+      const response = await agentFetch(
+        {
+          agent: "chat",
+          host: agent.host,
+          name: "default",
+          path: "disconnect-mcp",
+        },
+        {
+          method: "POST",
+          body: JSON.stringify({ serverId }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        setServers((prev) =>
+          prev.map((s) =>
+            s.id === serverId ? { ...s, connected: false } : s
+          )
+        );
+        if (serverId === activeServerId) {
+          setActiveServerId(null);
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error disconnecting server:", error);
+    }
   };
 
   return (
@@ -314,7 +340,7 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
                     </button>
                   ) : (
                     <button
-                      onClick={handleDisconnectServer}
+                      onClick={() => handleDisconnectServer(server.id)}
                       className="p-1 text-gray-400 hover:text-red-500 transition-colors"
                       title="Disconnect from server"
                     >
