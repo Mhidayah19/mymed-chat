@@ -71,7 +71,11 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
             setServers([]); // Clear servers on error
           }
         } else {
-          console.error("❌ Response not ok:", response.status, response.statusText);
+          console.error(
+            "❌ Response not ok:",
+            response.status,
+            response.statusText
+          );
           setServers([]); // Clear servers on error
         }
       } catch (error) {

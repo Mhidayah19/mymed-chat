@@ -2,11 +2,7 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/card/Card";
 import { Button } from "@/components/button/Button";
 import { agentFetch } from "agents/client";
-import {
-  ArrowClockwise,
-  Warning,
-  FileText,
-} from "@phosphor-icons/react";
+import { ArrowClockwise, Warning, FileText } from "@phosphor-icons/react";
 
 interface BookingTemplate {
   customer: string;
@@ -49,9 +45,15 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
       });
 
       if (cachedResponse.ok) {
-        const cachedData = (await cachedResponse.json()) as BookingTemplatesData;
+        const cachedData =
+          (await cachedResponse.json()) as BookingTemplatesData;
         console.log("Cached templates response:", cachedData);
-        if (cachedData.success && cachedData.templates && Array.isArray(cachedData.templates) && cachedData.templates.length > 0) {
+        if (
+          cachedData.success &&
+          cachedData.templates &&
+          Array.isArray(cachedData.templates) &&
+          cachedData.templates.length > 0
+        ) {
           setBookingTemplates(cachedData.templates);
           return; // Use cached templates
         }
@@ -75,7 +77,11 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
           setBookingTemplates([]);
         }
       } else {
-        console.error("Failed to fetch templates:", response.status, response.statusText);
+        console.error(
+          "Failed to fetch templates:",
+          response.status,
+          response.statusText
+        );
         setError("Failed to generate booking templates");
       }
     } catch (err) {
@@ -183,15 +189,21 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h4 className="font-semibold text-neutral-900 dark:text-neutral-100">
-                      {template.customer || 'Unknown Customer'}
+                      {template.customer || "Unknown Customer"}
                     </h4>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {template.totalBookings || 0} total bookings • Most common combination appears {template.frequency || 0} times
+                      {template.totalBookings || 0} total bookings • Most common
+                      combination appears {template.frequency || 0} times
                     </p>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-green-600 dark:text-green-400">
-                      {Math.round(((template.frequency || 0) / (template.totalBookings || 1)) * 100)}% frequency
+                      {Math.round(
+                        ((template.frequency || 0) /
+                          (template.totalBookings || 1)) *
+                          100
+                      )}
+                      % frequency
                     </div>
                   </div>
                 </div>
@@ -202,7 +214,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
                       Equipment
                     </div>
                     <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                      {template.equipment || 'Unknown Equipment'}
+                      {template.equipment || "Unknown Equipment"}
                     </div>
                   </div>
 
@@ -211,7 +223,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
                       Surgeon
                     </div>
                     <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                      {template.surgeon || 'Unknown Surgeon'}
+                      {template.surgeon || "Unknown Surgeon"}
                     </div>
                   </div>
 
@@ -220,7 +232,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
                       Sales Rep
                     </div>
                     <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                      {template.salesrep || 'Unknown Sales Rep'}
+                      {template.salesrep || "Unknown Sales Rep"}
                     </div>
                   </div>
                 </div>
@@ -234,58 +246,70 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
                       const nextBusinessDay = new Date();
                       nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
                       // Skip weekends
-                      if (nextBusinessDay.getDay() === 0) nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
-                      if (nextBusinessDay.getDay() === 6) nextBusinessDay.setDate(nextBusinessDay.getDate() + 2);
-                      
+                      if (nextBusinessDay.getDay() === 0)
+                        nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
+                      if (nextBusinessDay.getDay() === 6)
+                        nextBusinessDay.setDate(nextBusinessDay.getDate() + 2);
+
                       // Create surgery schedule
                       const dayOfUse = new Date(nextBusinessDay);
                       dayOfUse.setHours(8, 0, 0, 0); // 8 AM start
-                      
+
                       const endOfUse = new Date(nextBusinessDay);
                       endOfUse.setHours(18, 0, 0, 0); // 6 PM end
-                      
+
                       // Delivery day before at 10 AM
                       const deliveryDate = new Date(nextBusinessDay);
                       deliveryDate.setDate(deliveryDate.getDate() - 1);
                       deliveryDate.setHours(10, 0, 0, 0);
-                      
+
                       // Return day after at 4 PM
                       const returnDate = new Date(nextBusinessDay);
                       returnDate.setDate(returnDate.getDate() + 1);
                       returnDate.setHours(16, 0, 0, 0);
 
                       // Convert equipment name to material ID with null safety
-                      const materialId = (template.equipment || 'UNKNOWN-EQUIPMENT').toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, '');
+                      const materialId = (
+                        template.equipment || "UNKNOWN-EQUIPMENT"
+                      )
+                        .toUpperCase()
+                        .replace(/\s+/g, "-")
+                        .replace(/[^A-Z0-9-]/g, "");
 
                       const bookingRequest = {
                         items: [
                           {
                             quantity: 1,
-                            materialId: materialId || 'UNKNOWN-EQUIPMENT'
-                          }
+                            materialId: materialId || "UNKNOWN-EQUIPMENT",
+                          },
                         ],
                         notes: [
                           {
-                            language: 'EN',
-                            noteContent: `${template.equipment || 'Unknown Equipment'} - ${template.surgeon || 'Unknown Surgeon'}`
-                          }
+                            language: "EN",
+                            noteContent: `${template.equipment || "Unknown Equipment"} - ${template.surgeon || "Unknown Surgeon"}`,
+                          },
                         ],
                         isDraft: true,
-                        currency: 'EUR',
-                        customer: template.customerId || template.customer || 'Unknown Customer',
+                        currency: "EUR",
+                        customer:
+                          template.customerId ||
+                          template.customer ||
+                          "Unknown Customer",
                         dayOfUse: dayOfUse.toISOString(),
                         endOfUse: endOfUse.toISOString(),
                         returnDate: returnDate.toISOString(),
-                        description: template.equipment || 'Medical Equipment',
-                        surgeryType: 'OR',
+                        description: template.equipment || "Medical Equipment",
+                        surgeryType: "OR",
                         deliveryDate: deliveryDate.toISOString(),
                         isSimulation: true,
                         collectionDate: returnDate.toISOString(),
-                        reservationType: '01',
-                        surgeryDescription: `${template.surgeon || 'Unknown Surgeon'}`
+                        reservationType: "01",
+                        surgeryDescription: `${template.surgeon || "Unknown Surgeon"}`,
                       };
 
-                      navigator.clipboard.writeText(JSON.stringify(bookingRequest, null, 2));
+                      navigator.clipboard.writeText(
+                        JSON.stringify(bookingRequest, null, 2)
+                      );
                       // TODO: Add toast notification for successful copy
                     }}
                   >
@@ -303,7 +327,8 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
                 No Common Bookings Found
               </h4>
               <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-                Click the button above to analyze the most common booking combinations by customer.
+                Click the button above to analyze the most common booking
+                combinations by customer.
               </p>
             </div>
           </Card>

@@ -128,7 +128,6 @@ export default function Chat() {
     setTextareaHeight(`${e.target.scrollHeight}px`);
   };
 
-
   // Function to read image format and console log it
   const logImageFormat = (file: File) => {
     console.log("=== Image Format Information ===");
@@ -162,7 +161,7 @@ export default function Chat() {
           path: "cached-templates",
         });
         if (response.ok) {
-          const data = await response.json() as { templates?: any[] };
+          const data = (await response.json()) as { templates?: any[] };
           setHasBookingTemplates(
             Boolean(data.templates && data.templates.length > 0)
           );

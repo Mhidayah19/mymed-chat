@@ -19,15 +19,6 @@ const model = openai("gpt-4o-2024-11-20");
  * Chat Agent implementation that handles real-time AI chat interactions
  */
 export class Chat extends AIChatAgent<Env> {
-  // Override broadcast to handle WebSocket errors gracefully
-  broadcast(message: string, exclude?: string[]) {
-    try {
-      return super.broadcast(message, exclude);
-    } catch (error) {
-      console.error("🚨 WebSocket broadcast error (non-fatal):", error);
-      // Continue execution - don't let WebSocket errors break the agent
-    }
-  }
 
   // Define use_prompt tool as class property
   private usePromptTool = {
@@ -119,78 +110,6 @@ export class Chat extends AIChatAgent<Env> {
     // Collect all prompts from MCP servers
     const mcpPrompts = this.mcp.listPrompts();
 
-    // Counter tools for cross-agent communication
-    const counterTools = {
-      incrementCounter: {
-        description: "Increment the global counter by 1",
-        parameters: z.object({}),
-        execute: async () => {
-          try {
-            const counterAgent = await getAgentByName(
-              this.env.CounterAgent,
-              "main-counter"
-            );
-            return await counterAgent.increment();
-          } catch (error) {
-            console.error("Error calling CounterAgent.increment:", error);
-            return { error: (error as Error).message };
-          }
-        },
-      },
-
-      getCounterValue: {
-        description: "Get the current counter value and last updated time",
-        parameters: z.object({}),
-        execute: async () => {
-          try {
-            const counterAgent = await getAgentByName(
-              this.env.CounterAgent,
-              "main-counter"
-            );
-            return await counterAgent.getCount();
-          } catch (error) {
-            console.error("Error calling CounterAgent.getCount:", error);
-            return { error: (error as Error).message };
-          }
-        },
-      },
-
-      resetCounter: {
-        description: "Reset the counter to 0",
-        parameters: z.object({}),
-        execute: async () => {
-          try {
-            const counterAgent = await getAgentByName(
-              this.env.CounterAgent,
-              "main-counter"
-            );
-            return await counterAgent.reset();
-          } catch (error) {
-            console.error("Error calling CounterAgent.reset:", error);
-            return { error: (error as Error).message };
-          }
-        },
-      },
-
-      addToCounter: {
-        description: "Add a specific value to the counter",
-        parameters: z.object({
-          value: z.number().describe("The number to add to the counter"),
-        }),
-        execute: async (args: { value: number }) => {
-          try {
-            const counterAgent = await getAgentByName(
-              this.env.CounterAgent,
-              "main-counter"
-            );
-            return await counterAgent.add(args.value);
-          } catch (error) {
-            console.error("Error calling CounterAgent.add:", error);
-            return { error: (error as Error).message };
-          }
-        },
-      },
-    };
 
     // Booking analysis tools for medical equipment analysis
     const bookingAnalysisTools = {
@@ -249,27 +168,6 @@ export class Chat extends AIChatAgent<Env> {
           } catch (error) {
             console.error(
               "Error calling BookingAnalysisAgent.generateCommonBookingTemplates:",
-              error
-            );
-            return { error: (error as Error).message };
-          }
-        },
-      },
-
-      manualTriggerBookingAnalysis: {
-        description:
-          "Manually trigger booking analysis from MCP servers (replaces automatic monitoring)",
-        parameters: z.object({}),
-        execute: async (): Promise<any> => {
-          try {
-            const bookingAgent = await getAgentByName(
-              this.env.BookingAnalysisAgent,
-              "main-analyzer"
-            );
-            return await bookingAgent.manualTriggerAnalysis();
-          } catch (error) {
-            console.error(
-              "Error calling BookingAnalysisAgent.manualTriggerAnalysis:",
               error
             );
             return { error: (error as Error).message };
@@ -445,42 +343,46 @@ export class Chat extends AIChatAgent<Env> {
               const transformedBookings = bookingData.map((booking: any) => {
                 // Extract equipment from items array (first item's materialId and description)
                 let equipment = "Unknown Equipment";
-                if (booking.items && Array.isArray(booking.items) && booking.items.length > 0) {
+                if (
+                  booking.items &&
+                  Array.isArray(booking.items) &&
+                  booking.items.length > 0
+                ) {
                   const firstItem = booking.items[0];
                   // Use materialId if available, fallback to description
-                  equipment = firstItem.materialId || firstItem.description || "Unknown Equipment";
-                  console.log("🔍 Equipment extraction (tool):", {
-                    hasItems: !!booking.items,
-                    itemsLength: booking.items?.length,
-                    firstItem: firstItem,
-                    materialId: firstItem?.materialId,
-                    description: firstItem?.description,
-                    finalEquipment: equipment
-                  });
+                  equipment =
+                    firstItem.materialId ||
+                    firstItem.description ||
+                    "Unknown Equipment";
                 }
 
-                const salesrep = booking.salesRepName || booking.salesrep || "Unknown Sales Rep";
-                console.log("🔍 Salesrep extraction (tool):", {
-                  salesRepName: booking.salesRepName,
-                  salesrep: booking.salesrep,
-                  finalSalesrep: salesrep
-                });
+                const salesrep =
+                  booking.salesRepName ||
+                  booking.salesrep ||
+                  "Unknown Sales Rep";
 
                 return {
                   id: booking.bookingId || booking.id || "unknown",
-                  customer: booking.customerName || booking.customer || "Unknown Customer",
-                  customerId: booking.customer || "unknown", 
+                  customer:
+                    booking.customerName ||
+                    booking.customer ||
+                    "Unknown Customer",
+                  customerId: booking.customer || "unknown",
                   surgeon: booking.surgeon || "Unknown Surgeon",
                   salesrep: salesrep,
                   equipment: equipment,
-                  date: booking.dayOfUse || booking.createdOn || booking.deliveryDate || new Date().toISOString(),
-                  status: booking.bookingStatus || booking.status || "Unknown Status",
-                  value: parseFloat(booking.estimatedValue || booking.value || "0")
+                  date:
+                    booking.dayOfUse ||
+                    booking.createdOn ||
+                    booking.deliveryDate ||
+                    new Date().toISOString(),
+                  status:
+                    booking.bookingStatus || booking.status || "Unknown Status",
+                  value: parseFloat(
+                    booking.estimatedValue || booking.value || "0"
+                  ),
                 };
               });
-
-              console.log("🔄 Transformed", transformedBookings.length, "bookings from tool function");
-              console.log("📋 Sample transformed booking (tool):", transformedBookings[0]);
 
               // Send the transformed booking data to BookingAnalysisAgent for processing
               const analysisResult =
@@ -508,7 +410,6 @@ export class Chat extends AIChatAgent<Env> {
     const allTools = {
       ...validMcpTools,
       ...this.usePromptTool,
-      ...counterTools,
       ...bookingAnalysisTools,
     };
 
@@ -706,7 +607,7 @@ export class Chat extends AIChatAgent<Env> {
         serverId: targetServerId,
         name: bookingTool.name,
         arguments: {
-          "customQuery": "$expand=items"
+          customQuery: "$expand=items",
         },
       });
 
@@ -781,48 +682,45 @@ export class Chat extends AIChatAgent<Env> {
         const transformedBookings = bookingData.map((booking: any) => {
           // Extract equipment from items array (first item's materialId and description)
           let equipment = "Unknown Equipment";
-          if (booking.items && Array.isArray(booking.items) && booking.items.length > 0) {
+          if (
+            booking.items &&
+            Array.isArray(booking.items) &&
+            booking.items.length > 0
+          ) {
             const firstItem = booking.items[0];
             // Use materialId if available, fallback to description
-            equipment = firstItem.materialId || firstItem.description || "Unknown Equipment";
-            console.log("🔍 Equipment extraction:", {
-              hasItems: !!booking.items,
-              itemsLength: booking.items?.length,
-              firstItem: firstItem,
-              materialId: firstItem?.materialId,
-              description: firstItem?.description,
-              finalEquipment: equipment
-            });
+            equipment =
+              firstItem.materialId ||
+              firstItem.description ||
+              "Unknown Equipment";
           }
 
-          const salesrep = booking.salesRepName || booking.salesrep || "Unknown Sales Rep";
-          console.log("🔍 Salesrep extraction:", {
-            salesRepName: booking.salesRepName,
-            salesrep: booking.salesrep,
-            finalSalesrep: salesrep
-          });
+          const salesrep =
+            booking.salesRepName || booking.salesrep || "Unknown Sales Rep";
 
           const transformed = {
             id: booking.bookingId || booking.id || "unknown",
-            customer: booking.customerName || booking.customer || "Unknown Customer",
-            customerId: booking.customer || "unknown", 
+            customer:
+              booking.customerName || booking.customer || "Unknown Customer",
+            customerId: booking.customer || "unknown",
             surgeon: booking.surgeon || "Unknown Surgeon",
             salesrep: salesrep,
             equipment: equipment,
-            date: booking.dayOfUse || booking.createdOn || booking.deliveryDate || new Date().toISOString(),
+            date:
+              booking.dayOfUse ||
+              booking.createdOn ||
+              booking.deliveryDate ||
+              new Date().toISOString(),
             status: booking.bookingStatus || booking.status || "Unknown Status",
-            value: parseFloat(booking.estimatedValue || booking.value || "0")
+            value: parseFloat(booking.estimatedValue || booking.value || "0"),
           };
 
-          console.log("🔄 Transformed booking:", transformed);
           return transformed;
         });
 
-        console.log("🔄 Transformed", transformedBookings.length, "bookings with correct field mapping");
-        console.log("📋 Sample transformed booking:", transformedBookings[0]);
-
         // Send the transformed booking data to BookingAnalysisAgent for processing
-        const analysisResult = await bookingAgent.setBookings(transformedBookings);
+        const analysisResult =
+          await bookingAgent.setBookings(transformedBookings);
         return {
           ...analysisResult,
           source: "mcp",
@@ -849,7 +747,7 @@ export class Chat extends AIChatAgent<Env> {
     if (reqUrl.pathname.endsWith("list-mcp") && request.method === "GET") {
       try {
         console.log("🔍 Starting MCP servers list request");
-        
+
         // Check database and MCP state with better error handling
         let dbServers = [];
         try {
@@ -880,12 +778,15 @@ export class Chat extends AIChatAgent<Env> {
         );
       } catch (error) {
         console.error("❌ Error listing MCP servers:", error);
-        console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack");
+        console.error(
+          "❌ Error stack:",
+          error instanceof Error ? error.stack : "No stack"
+        );
         return new Response(
-          JSON.stringify({ 
-            success: false, 
+          JSON.stringify({
+            success: false,
             error: error instanceof Error ? error.message : "Unknown error",
-            servers: {} 
+            servers: {},
           }),
           {
             status: 200, // Return 200 with error info instead of 500
@@ -1098,8 +999,10 @@ export class Chat extends AIChatAgent<Env> {
         console.log("✅ MCP server added successfully");
 
         // Auto-trigger booking analysis when MCP server is ready (if no auth required)
-        if (!result || typeof result !== 'object' || !('authUrl' in result)) {
-          console.log("🚀 Auto-triggering booking analysis after MCP connection");
+        if (!result || typeof result !== "object" || !("authUrl" in result)) {
+          console.log(
+            "🚀 Auto-triggering booking analysis after MCP connection"
+          );
           // Use setTimeout to avoid blocking the response
           setTimeout(async () => {
             try {
@@ -1307,7 +1210,6 @@ export class Chat extends AIChatAgent<Env> {
 }
 
 // Export agents for Durable Object bindings
-export { CounterAgent } from "./counter-agent";
 export { BookingAnalysisAgent } from "./booking-analysis-agent";
 
 /**

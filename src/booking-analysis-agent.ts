@@ -12,7 +12,6 @@ type BookingData = {
   value: number;
 };
 
-
 type BookingTemplate = {
   customer: string;
   customerId: string;
@@ -45,20 +44,10 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
 
     // Disable automatic MCP monitoring to prevent Workers hanging
     // Auto-monitoring can be re-enabled later if needed
-    console.log("ℹ️ Automatic MCP monitoring is disabled to prevent hanging issues");
+    console.log(
+      "ℹ️ Automatic MCP monitoring is disabled to prevent hanging issues"
+    );
   }
-
-  // Removed unused MCP monitoring methods to prevent potential hanging issues:
-  // - startMcpMonitoring()
-  // - checkAndExecuteAnalysis() 
-  // - performMcpCheck()
-  // - triggerBookingAnalysis()
-  // - performBookingAnalysis()
-  // These methods contained setInterval and cross-agent communication that could cause hanging
-
-  // Note: executeBookingAnalysis removed - Chat agent now handles all MCP communication
-  // Use Chat agent's executeBookingAnalysis tool instead
-
 
   @unstable_callable({ description: "Set booking data" })
   async setBookings(bookings: BookingData[]) {
@@ -77,8 +66,6 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
     };
   }
 
-
-
   @unstable_callable({ description: "Get all booking data" })
   async getBookings() {
     return {
@@ -86,10 +73,6 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
       count: this.state.bookings.length,
     };
   }
-
-
-
-
 
   @unstable_callable({
     description: "Reset analysis state",
@@ -106,40 +89,6 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
       success: true,
       message: "Analysis state reset successfully",
     };
-  }
-
-  @unstable_callable({
-    description: "Manually trigger booking analysis from MCP (replaces automatic monitoring)",
-  })
-  async manualTriggerAnalysis() {
-    try {
-      console.log("🚀 [MANUAL] Manual booking analysis trigger requested");
-      
-      // Check if we already have analysis
-      if (this.state.lastAnalysis) {
-        console.log("ℹ️ [MANUAL] Analysis already exists, skipping");
-        return {
-          success: false,
-          message: "Analysis already completed. Use reset first if you want to re-run.",
-          hasExistingAnalysis: true,
-        };
-      }
-
-      // Note: Direct MCP communication removed to prevent hanging
-      // Manual trigger should be performed via Chat agent instead
-      console.log("ℹ️ [MANUAL] Direct MCP communication disabled to prevent hanging");
-      
-      return {
-        success: false,
-        message: "Manual trigger disabled - use Chat agent executeBookingAnalysis tool instead",
-      };
-    } catch (error) {
-      console.error("❌ [MANUAL] Error in manual trigger:", error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : "Manual trigger failed",
-      };
-    }
   }
 
   @unstable_callable({
@@ -160,80 +109,84 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
         };
       }
 
-    // Group bookings by customer and find their most common combination
-    const customerBookings = new Map<string, BookingData[]>();
-    bookings.forEach((booking) => {
-      if (!customerBookings.has(booking.customer)) {
-        customerBookings.set(booking.customer, []);
-      }
-      customerBookings.get(booking.customer)!.push(booking);
-    });
+      // Group bookings by customer and find their most common combination
+      const customerBookings = new Map<string, BookingData[]>();
+      bookings.forEach((booking) => {
+        if (!customerBookings.has(booking.customer)) {
+          customerBookings.set(booking.customer, []);
+        }
+        customerBookings.get(booking.customer)!.push(booking);
+      });
 
-    const templates: BookingTemplate[] = [];
+      const templates: BookingTemplate[] = [];
 
-    // For each customer, find their most common booking combination
-    customerBookings.forEach((customerBookingList, customerName) => {
-      // Find most common equipment, surgeon, salesrep combination
-      const combinationFreq = new Map<string, { 
-        equipment: string; 
-        surgeon: string; 
-        salesrep: string; 
-        count: number 
-      }>();
+      // For each customer, find their most common booking combination
+      customerBookings.forEach((customerBookingList, customerName) => {
+        // Find most common equipment, surgeon, salesrep combination
+        const combinationFreq = new Map<
+          string,
+          {
+            equipment: string;
+            surgeon: string;
+            salesrep: string;
+            count: number;
+          }
+        >();
 
-      customerBookingList.forEach((booking) => {
-        // Add null safety for booking properties
-        const equipment = booking.equipment || 'Unknown Equipment';
-        const surgeon = booking.surgeon || 'Unknown Surgeon';
-        const salesrep = booking.salesrep || 'Unknown Sales Rep';
-        
-        const key = `${equipment}|${surgeon}|${salesrep}`;
-        if (combinationFreq.has(key)) {
-          combinationFreq.get(key)!.count++;
-        } else {
-          combinationFreq.set(key, {
-            equipment,
-            surgeon,
-            salesrep,
-            count: 1
-          });
+        customerBookingList.forEach((booking) => {
+          // Add null safety for booking properties
+          const equipment = booking.equipment || "Unknown Equipment";
+          const surgeon = booking.surgeon || "Unknown Surgeon";
+          const salesrep = booking.salesrep || "Unknown Sales Rep";
+
+          const key = `${equipment}|${surgeon}|${salesrep}`;
+          if (combinationFreq.has(key)) {
+            combinationFreq.get(key)!.count++;
+          } else {
+            combinationFreq.set(key, {
+              equipment,
+              surgeon,
+              salesrep,
+              count: 1,
+            });
+          }
+        });
+
+        // Get the most common combination
+        const mostCommon = Array.from(combinationFreq.values()).sort(
+          (a, b) => b.count - a.count
+        )[0];
+
+        if (mostCommon) {
+          // Get customerId from the first booking for this customer
+          const firstBooking = customerBookingList[0];
+          const template: BookingTemplate = {
+            customer: customerName,
+            customerId: firstBooking.customerId || customerName,
+            equipment: mostCommon.equipment,
+            surgeon: mostCommon.surgeon,
+            salesrep: mostCommon.salesrep,
+            frequency: mostCommon.count,
+            totalBookings: customerBookingList.length,
+          };
+
+          templates.push(template);
         }
       });
 
-      // Get the most common combination
-      const mostCommon = Array.from(combinationFreq.values())
-        .sort((a, b) => b.count - a.count)[0];
+      // Sort by frequency (most common combinations first)
+      templates.sort((a, b) => b.frequency - a.frequency);
 
-      if (mostCommon) {
-        // Get customerId from the first booking for this customer
-        const firstBooking = customerBookingList[0];
-        const template: BookingTemplate = {
-          customer: customerName,
-          customerId: firstBooking.customerId || customerName,
-          equipment: mostCommon.equipment,
-          surgeon: mostCommon.surgeon,
-          salesrep: mostCommon.salesrep,
-          frequency: mostCommon.count,
-          totalBookings: customerBookingList.length,
-        };
+      // Store templates in state
+      this.setState({
+        ...this.state,
+        cachedTemplates: templates,
+        templatesGeneratedAt: new Date().toISOString(), // Store as string
+      });
 
-        templates.push(template);
-      }
-    });
-
-    // Sort by frequency (most common combinations first)
-    templates.sort((a, b) => b.frequency - a.frequency);
-
-    // Store templates in state
-    this.setState({
-      ...this.state,
-      cachedTemplates: templates,
-      templatesGeneratedAt: new Date().toISOString(), // Store as string
-    });
-
-    console.log(
-      `📋 Found ${templates.length} most common booking patterns from ${bookings.length} bookings`
-    );
+      console.log(
+        `📋 Found ${templates.length} most common booking patterns from ${bookings.length} bookings`
+      );
 
       return {
         success: true,
@@ -244,10 +197,16 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
       };
     } catch (error) {
       console.error("❌ Error generating booking templates:", error);
-      console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack");
+      console.error(
+        "❌ Error stack:",
+        error instanceof Error ? error.stack : "No stack"
+      );
       return {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to generate templates",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate templates",
         templates: [],
         generatedAt: new Date().toISOString(),
         sourceBookings: this.state.bookings?.length || 0,
@@ -256,12 +215,13 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
   }
 
   @unstable_callable({
-    description: "Get cached booking templates (returns stored templates without regenerating)",
+    description:
+      "Get cached booking templates (returns stored templates without regenerating)",
   })
   async getCachedTemplates() {
     try {
       console.log("📋 Getting cached templates");
-      
+
       return {
         success: true,
         templates: this.state.cachedTemplates || [],
@@ -275,7 +235,10 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
         templates: [],
         generatedAt: null,
         sourceBookings: 0,
-        error: error instanceof Error ? error.message : "Failed to get cached templates",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to get cached templates",
       };
     }
   }
@@ -294,31 +257,25 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
             return Response.json(await this.resetForTesting());
 
           case url.pathname.endsWith("/templates"):
-            console.log("🔍 Templates endpoint called");
-            const templatesResult = await this.generateCommonBookingTemplates();
-            console.log("📋 Templates result:", templatesResult);
-            return Response.json(templatesResult);
+            return Response.json(await this.generateCommonBookingTemplates());
 
           case url.pathname.endsWith("/cached-templates"):
-            console.log("🔍 Cached templates endpoint called");
-            const cachedResult = await this.getCachedTemplates();
-            console.log("📋 Cached result:", cachedResult);
-            return Response.json(cachedResult);
-
-          case url.pathname.endsWith("/manual-trigger"):
-            console.log("🔍 Manual trigger endpoint called");
-            const triggerResult = await this.manualTriggerAnalysis();
-            console.log("🚀 Manual trigger result:", triggerResult);
-            return Response.json(triggerResult);
+            return Response.json(await this.getCachedTemplates());
         }
       } catch (error) {
         console.error("❌ Error in booking analysis endpoint:", error);
-        console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack");
-        return Response.json({
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-          templates: [],
-        }, { status: 200 }); // Return 200 with error info instead of 500
+        console.error(
+          "❌ Error stack:",
+          error instanceof Error ? error.stack : "No stack"
+        );
+        return Response.json(
+          {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+            templates: [],
+          },
+          { status: 200 }
+        ); // Return 200 with error info instead of 500
       }
     }
 
@@ -327,16 +284,14 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
         const { bookings } = (await request.json()) as {
           bookings: BookingData[];
         };
-        console.log("📊 Setting bookings:", bookings.length, "items");
-        const result = await this.setBookings(bookings);
-        console.log("✅ Bookings set successfully:", result);
-        return Response.json(result);
+        return Response.json(await this.setBookings(bookings));
       } catch (error) {
         console.error("❌ Error setting bookings:", error);
         return Response.json(
-          { 
+          {
             success: false,
-            error: error instanceof Error ? error.message : "Invalid booking data" 
+            error:
+              error instanceof Error ? error.message : "Invalid booking data",
           },
           { status: 200 } // Return 200 with error info
         );
