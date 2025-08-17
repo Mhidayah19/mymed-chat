@@ -12,6 +12,7 @@ import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import McpSettings from "@/components/mcp/McpSettings";
+import BookingRecommendations from "@/components/booking/BookingRecommendations";
 
 // Icon imports
 import {
@@ -24,6 +25,7 @@ import {
   Stop,
   Image,
   Gear,
+  Lightbulb,
 } from "@phosphor-icons/react";
 
 export default function Chat() {
@@ -38,6 +40,8 @@ export default function Chat() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   // MCP tools are now handled automatically by the backend agent
   const [showMcpPanel, setShowMcpPanel] = useState(false);
+  const [activeTab, setActiveTab] = useState<"mcp" | "recommendations">("mcp");
+  const [hasBookingTemplates, setHasBookingTemplates] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -72,7 +76,7 @@ export default function Chat() {
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.type.startsWith("image/")) {
+    if (file?.type.startsWith("image/")) {
       setSelectedImage(file);
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -124,17 +128,6 @@ export default function Chat() {
     setTextareaHeight(`${e.target.scrollHeight}px`);
   };
 
-  // Function to get the final message with image description
-  const getFinalMessage = () => {
-    let message = agentInput;
-    if (selectedImage) {
-      const imageDescription = `[Image uploaded: ${selectedImage.name}]`;
-      message = agentInput.trim()
-        ? `${agentInput} ${imageDescription}`
-        : `I've uploaded an image (${selectedImage.name}) for you to analyze.`;
-    }
-    return message;
-  };
 
   // Function to read image format and console log it
   const logImageFormat = (file: File) => {
@@ -156,6 +149,32 @@ export default function Chat() {
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
   }, [agentMessages, scrollToBottom]);
+
+  // Check for booking templates on mount only (no auto-refresh to prevent hanging)
+  useEffect(() => {
+    const checkBookingTemplates = async () => {
+      try {
+        const { agentFetch } = await import("agents/client");
+        const response = await agentFetch({
+          agent: "booking-analysis-agent",
+          host: agent.host,
+          name: "main-analyzer",
+          path: "cached-templates",
+        });
+        if (response.ok) {
+          const data = await response.json() as { templates?: any[] };
+          setHasBookingTemplates(
+            Boolean(data.templates && data.templates.length > 0)
+          );
+        }
+      } catch (error) {
+        // Silent fail - templates check is not critical
+      }
+    };
+
+    checkBookingTemplates();
+    // Removed setInterval to prevent Workers hanging issues
+  }, [agent]);
 
   const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
     m.parts?.some(
@@ -208,10 +227,20 @@ export default function Chat() {
               variant="ghost"
               size="md"
               shape="square"
-              className="rounded-full h-9 w-9"
-              onClick={() => setShowMcpPanel((prev) => !prev)}
+              className="rounded-full h-9 w-9 relative"
+              onClick={() => {
+                setShowMcpPanel((prev) => !prev);
+                if (hasBookingTemplates && !showMcpPanel) {
+                  setActiveTab("recommendations");
+                }
+              }}
             >
               <Gear size={20} />
+              {hasBookingTemplates && !showMcpPanel && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full flex items-center justify-center">
+                  <Lightbulb size={8} className="text-white" />
+                </div>
+              )}
             </Button>
             <Bug size={16} />
             <Toggle
@@ -390,7 +419,7 @@ export default function Chat() {
               // The backend needs to be updated to handle multimodal format
               console.log(
                 "Image base64 data URL:",
-                base64.substring(0, 100) + "..."
+                `${base64.substring(0, 100)}...`
               );
             }
             console.log("messageContent", messageContent);
@@ -550,7 +579,7 @@ data: ${base64Data}
       {/* MCP Tools Panel - positioned to extend from right edge of centered chat container */}
       {showMcpPanel && (
         <div
-          className="fixed h-[calc(100vh-2rem)] w-80 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 border-l-0 shadow-xl rounded-r-md overflow-hidden z-20"
+          className="fixed h-[calc(100vh-2rem)] w-96 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 border-l-0 shadow-xl rounded-r-md overflow-hidden z-20"
           style={{
             left: `calc(50% + ${512 / 2}px)`, // 50% (center) + half of max-w-lg (256px)
             top: "1rem",
@@ -563,9 +592,13 @@ data: ${base64Data}
                 <Gear size={20} className="text-[#F48120]" />
               </div>
               <div className="flex-1">
-                <h2 className="font-semibold text-base">MCP Settings</h2>
+                <h2 className="font-semibold text-base">
+                  {activeTab === "mcp" ? "MCP Settings" : "Booking Analysis"}
+                </h2>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Configure Model Context Protocol servers
+                  {activeTab === "mcp"
+                    ? "Configure Model Context Protocol servers"
+                    : "Most common booking patterns and templates"}
                 </p>
               </div>
               <Button
@@ -579,9 +612,37 @@ data: ${base64Data}
               </Button>
             </div>
 
+            {/* Tabs */}
+            <div className="flex border-b border-neutral-300 dark:border-neutral-800">
+              <button
+                onClick={() => setActiveTab("mcp")}
+                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === "mcp"
+                    ? "text-[#F48120] border-b-2 border-[#F48120] bg-neutral-50 dark:bg-neutral-800"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+              >
+                MCP Servers
+              </button>
+              <button
+                onClick={() => setActiveTab("recommendations")}
+                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === "recommendations"
+                    ? "text-[#F48120] border-b-2 border-[#F48120] bg-neutral-50 dark:bg-neutral-800"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                }`}
+              >
+                Booking Analysis
+              </button>
+            </div>
+
             {/* Panel Content */}
             <div className="flex-1 overflow-y-auto p-4">
-              <McpSettings agent={agent} />
+              {activeTab === "mcp" ? (
+                <McpSettings agent={agent} />
+              ) : (
+                <BookingRecommendations agent={agent} />
+              )}
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { Agent, unstable_callable } from "agents";
 type BookingData = {
   id: string;
   customer: string;
+  customerId: string;
   surgeon: string;
   salesrep: string;
   equipment: string;
@@ -11,365 +12,272 @@ type BookingData = {
   value: number;
 };
 
-type AnalysisResult = {
-  topCustomers: { name: string; bookings: number; value: number }[];
-  topSurgeons: { name: string; bookings: number; equipment: string[] }[];
-  topSalesreps: { name: string; bookings: number; revenue: number }[];
-  topEquipment: { name: string; bookings: number; customers: string[] }[];
-  statusDistribution: { status: string; count: number; percentage: number }[];
-  monthlyTrends: { month: string; bookings: number; value: number }[];
-  recommendations: string[];
+
+type BookingTemplate = {
+  customer: string;
+  customerId: string;
+  equipment: string;
+  surgeon: string;
+  salesrep: string;
+  frequency: number;
+  totalBookings: number;
 };
 
 type BookingAnalysisState = {
   bookings: BookingData[];
   lastAnalysis: Date | null;
-  analysisResult: AnalysisResult | null;
-  totalBookings: number;
-  totalValue: number;
+  cachedTemplates: BookingTemplate[];
+  templatesGeneratedAt: string | null; // Use string instead of Date to avoid serialization issues
 };
 
 export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
   initialState: BookingAnalysisState = {
     bookings: [],
     lastAnalysis: null,
-    analysisResult: null,
-    totalBookings: 0,
-    totalValue: 0,
+    cachedTemplates: [],
+    templatesGeneratedAt: null,
   };
 
   async onStart() {
-    console.log("📊 BookingAnalysisAgent started - ready for analysis requests");
-    
-    // Start monitoring for MCP connections and auto-execute analysis
-    await this.startMcpMonitoring();
+    console.log(
+      "📊 BookingAnalysisAgent started - ready for analysis requests"
+    );
+
+    // Disable automatic MCP monitoring to prevent Workers hanging
+    // Auto-monitoring can be re-enabled later if needed
+    console.log("ℹ️ Automatic MCP monitoring is disabled to prevent hanging issues");
   }
 
-  private async startMcpMonitoring() {
-    console.log("🔍 Starting MCP server monitoring for automatic booking analysis");
-    
-    // Check for existing MCP connections every 10 seconds
-    const checkInterval = setInterval(async () => {
-      try {
-        await this.checkAndExecuteAnalysis();
-      } catch (error) {
-        console.error("❌ Error during MCP monitoring check:", error);
-      }
-    }, 10000); // Check every 10 seconds
-
-    // Initial check immediately
-    setTimeout(() => this.checkAndExecuteAnalysis(), 2000); // Wait 2 seconds for system to initialize
-    
-    // Store interval for cleanup if needed
-    (this as any).mcpMonitoringInterval = checkInterval;
-  }
-
-  private async checkAndExecuteAnalysis() {
-    try {
-      console.log("🔍 [AUTO-CHECK] Checking for MCP connections...");
-      
-      // Get Chat agent to check for MCP connections
-      const chatAgent = await this.env.Chat.get(this.env.Chat.idFromName("default"));
-      
-      // Make a request to check MCP servers
-      const mcpCheckResponse = await chatAgent.fetch(new Request("https://dummy.com/list-mcp", {
-        method: "GET"
-      }));
-
-      if (mcpCheckResponse.ok) {
-        const mcpData = await mcpCheckResponse.json() as { servers?: Record<string, any> };
-        const servers = mcpData.servers || {};
-        const connectedServers = Object.keys(servers).filter(
-          serverId => servers[serverId]?.state === "ready"
-        );
-
-        console.log(`🔗 [AUTO-CHECK] Found ${connectedServers.length} connected MCP servers`);
-        console.log(`📊 [AUTO-CHECK] Last analysis: ${this.state.lastAnalysis ? 'EXISTS' : 'NONE'}`);
-
-        if (connectedServers.length > 0 && !this.state.lastAnalysis) {
-          console.log("🚀 [AUTO-TRIGGER] MCP servers detected - triggering automatic booking analysis");
-          await this.triggerBookingAnalysis();
-        } else if (connectedServers.length > 0) {
-          console.log("ℹ️ [AUTO-SKIP] MCP servers available but analysis already completed");
-        } else {
-          console.log("⏳ [AUTO-WAIT] No ready MCP servers yet, will check again in 10s");
-        }
-      } else {
-        console.log("❌ [AUTO-CHECK] Failed to get MCP server list");
-      }
-    } catch (error) {
-      // Silently handle errors to avoid spam - MCP might not be ready yet
-      if (error instanceof Error && !error.message.includes("fetch")) {
-        console.warn("⚠️ [AUTO-ERROR] MCP monitoring check failed:", error.message);
-      }
-    }
-  }
-
-  private async triggerBookingAnalysis() {
-    try {
-      console.log("📊 Auto-triggering booking analysis via Chat agent");
-      
-      // Get Chat agent
-      const chatAgent = await this.env.Chat.get(this.env.Chat.idFromName("default"));
-      
-      // Trigger the executeBookingAnalysis via internal fetch
-      const analysisResponse = await chatAgent.fetch(new Request("https://dummy.com/execute-booking-analysis", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autoTrigger: true })
-      }));
-
-      if (analysisResponse.ok) {
-        console.log("✅ Automatic booking analysis completed successfully");
-      } else {
-        console.warn("⚠️ Automatic booking analysis failed - will retry on next check");
-      }
-    } catch (error) {
-      console.error("❌ Failed to trigger automatic booking analysis:", error);
-    }
-  }
+  // Removed unused MCP monitoring methods to prevent potential hanging issues:
+  // - startMcpMonitoring()
+  // - checkAndExecuteAnalysis() 
+  // - performMcpCheck()
+  // - triggerBookingAnalysis()
+  // - performBookingAnalysis()
+  // These methods contained setInterval and cross-agent communication that could cause hanging
 
   // Note: executeBookingAnalysis removed - Chat agent now handles all MCP communication
   // Use Chat agent's executeBookingAnalysis tool instead
 
-  private async initializeMockData() {
-    // Simplified mock data for testing when real MCP data is unavailable
-    const mockBookings: BookingData[] = [
-      {
-        id: "DEMO001",
-        customer: "Demo Hospital",
-        surgeon: "Dr. Demo",
-        salesrep: "Demo Sales Rep",
-        equipment: "Demo Equipment",
-        date: new Date().toISOString().split('T')[0],
-        status: "demo",
-        value: 50000,
-      },
-    ];
 
-    console.log("📋 Using mock data (MCP unavailable)");
-    await this.setBookings(mockBookings);
-  }
-
-  @unstable_callable({ description: "Set booking data and trigger analysis" })
+  @unstable_callable({ description: "Set booking data" })
   async setBookings(bookings: BookingData[]) {
-    const analysisResult = this.analyzeBookings(bookings);
-    const totalValue = bookings.reduce(
-      (sum, booking) => sum + booking.value,
-      0
-    );
-
     this.setState({
       bookings,
       lastAnalysis: new Date(),
-      analysisResult,
-      totalBookings: bookings.length,
-      totalValue,
+      cachedTemplates: [], // Clear cached templates when new data arrives
+      templatesGeneratedAt: null,
     });
 
-    console.log(
-      `📊 Analysis complete: ${bookings.length} bookings, $${totalValue.toLocaleString()} total value`
-    );
+    console.log(`📊 Booking data stored: ${bookings.length} bookings`);
     return {
       success: true,
       bookingsProcessed: bookings.length,
-      totalValue,
       analysisTimestamp: new Date(),
     };
   }
 
-  private analyzeBookings(bookings: BookingData[]): AnalysisResult {
-    // Analysis maps
-    const customerMap = new Map<string, { bookings: number; value: number }>();
-    const surgeonMap = new Map<string, { bookings: number; equipment: Set<string> }>();
-    const salesrepMap = new Map<string, { bookings: number; revenue: number }>();
-    const equipmentMap = new Map<string, { bookings: number; customers: Set<string> }>();
-    const statusMap = new Map<string, number>();
-    const monthlyMap = new Map<string, { bookings: number; value: number }>();
 
-    bookings.forEach((booking) => {
-      // Customer patterns
-      const customer = customerMap.get(booking.customer) || { bookings: 0, value: 0 };
-      customer.bookings++;
-      customer.value += booking.value;
-      customerMap.set(booking.customer, customer);
-
-      // Surgeon patterns
-      const surgeon = surgeonMap.get(booking.surgeon) || { bookings: 0, equipment: new Set() };
-      surgeon.bookings++;
-      surgeon.equipment.add(booking.equipment);
-      surgeonMap.set(booking.surgeon, surgeon);
-
-      // Sales rep patterns
-      const salesrep = salesrepMap.get(booking.salesrep) || { bookings: 0, revenue: 0 };
-      salesrep.bookings++;
-      salesrep.revenue += booking.value;
-      salesrepMap.set(booking.salesrep, salesrep);
-
-      // Equipment patterns
-      const equipment = equipmentMap.get(booking.equipment) || { bookings: 0, customers: new Set() };
-      equipment.bookings++;
-      equipment.customers.add(booking.customer);
-      equipmentMap.set(booking.equipment, equipment);
-
-      // Status distribution
-      statusMap.set(booking.status, (statusMap.get(booking.status) || 0) + 1);
-
-      // Monthly trends (with date validation)
-      let month = new Date().toISOString().slice(0, 7); // Default to current month
-      const bookingDate = new Date(booking.date);
-      if (!isNaN(bookingDate.getTime())) {
-        month = bookingDate.toISOString().slice(0, 7); // YYYY-MM format
-      }
-      
-      const monthData = monthlyMap.get(month) || { bookings: 0, value: 0 };
-      monthData.bookings++;
-      monthData.value += booking.value;
-      monthlyMap.set(month, monthData);
-    });
-
-    const topCustomers = Array.from(customerMap.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-
-    const topSurgeons = Array.from(surgeonMap.entries())
-      .map(([name, data]) => ({
-        name,
-        bookings: data.bookings,
-        equipment: Array.from(data.equipment),
-      }))
-      .sort((a, b) => b.bookings - a.bookings)
-      .slice(0, 5);
-
-    const topSalesreps = Array.from(salesrepMap.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
-
-    // Top equipment analysis
-    const topEquipment = Array.from(equipmentMap.entries())
-      .map(([name, data]) => ({
-        name,
-        bookings: data.bookings,
-        customers: Array.from(data.customers),
-      }))
-      .sort((a, b) => b.bookings - a.bookings)
-      .slice(0, 5);
-
-    // Status distribution with percentages
-    const totalBookings = bookings.length;
-    const statusDistribution = Array.from(statusMap.entries())
-      .map(([status, count]) => ({
-        status,
-        count,
-        percentage: Math.round((count / totalBookings) * 100),
-      }))
-      .sort((a, b) => b.count - a.count);
-
-    // Monthly trends
-    const monthlyTrends = Array.from(monthlyMap.entries())
-      .map(([month, data]) => ({ month, ...data }))
-      .sort((a, b) => a.month.localeCompare(b.month));
-
-    // Enhanced recommendations based on comprehensive analysis
-    const recommendations = [
-      `Focus on ${topCustomers[0]?.name || "top customer"} - they account for $${(topCustomers[0]?.value || 0).toLocaleString()} in bookings`,
-      `Optimize ${topEquipment[0]?.name || "top equipment"} utilization - it's used in ${topEquipment[0]?.bookings || 0} bookings across ${topEquipment[0]?.customers?.length || 0} customers`,
-      `${topSalesreps[0]?.name || "Top sales rep"} generated $${(topSalesreps[0]?.revenue || 0).toLocaleString()} revenue - consider expanding their territory`,
-      statusDistribution[0] ? `${statusDistribution[0].percentage}% of bookings are "${statusDistribution[0].status}" - monitor for operational efficiency` : "Monitor booking status patterns",
-      monthlyTrends.length > 1 ? `Booking trend: ${monthlyTrends[monthlyTrends.length - 1].bookings > monthlyTrends[monthlyTrends.length - 2].bookings ? "increasing" : "decreasing"} from last month` : "Establish baseline for monthly trends",
-    ];
-
-    return {
-      topCustomers,
-      topSurgeons,
-      topSalesreps,
-      topEquipment,
-      statusDistribution,
-      monthlyTrends,
-      recommendations,
-    };
-  }
-
-  @unstable_callable({ description: "Get current booking analysis results" })
-  async getAnalysis() {
-    return {
-      lastAnalysis: this.state.lastAnalysis,
-      totalBookings: this.state.totalBookings,
-      totalValue: this.state.totalValue,
-      analysisResult: this.state.analysisResult,
-      summary: {
-        topCustomer: this.state.analysisResult?.topCustomers[0]?.name || "None",
-        topSurgeon: this.state.analysisResult?.topSurgeons[0]?.name || "None",
-        topSalesrep: this.state.analysisResult?.topSalesreps[0]?.name || "None",
-        topEquipment: this.state.analysisResult?.topEquipment[0]?.name || "None",
-        mostCommonStatus: this.state.analysisResult?.statusDistribution[0]?.status || "None",
-        totalMonths: this.state.analysisResult?.monthlyTrends?.length || 0,
-      },
-    };
-  }
 
   @unstable_callable({ description: "Get all booking data" })
   async getBookings() {
     return {
       bookings: this.state.bookings,
-      count: this.state.totalBookings,
-      totalValue: this.state.totalValue,
+      count: this.state.bookings.length,
     };
   }
 
-  @unstable_callable({ description: "Get recommendations" })
-  async getRecommendations() {
-    return {
-      recommendations: this.state.analysisResult?.recommendations || [],
-      lastAnalysis: this.state.lastAnalysis,
-    };
-  }
 
-  @unstable_callable({ description: "Get equipment analysis and usage patterns" })
-  async getEquipmentAnalysis() {
-    return {
-      topEquipment: this.state.analysisResult?.topEquipment || [],
-      statusDistribution: this.state.analysisResult?.statusDistribution || [],
-      lastAnalysis: this.state.lastAnalysis,
-    };
-  }
 
-  @unstable_callable({ description: "Get monthly trends and patterns" })
-  async getMonthlyTrends() {
-    return {
-      monthlyTrends: this.state.analysisResult?.monthlyTrends || [],
-      statusDistribution: this.state.analysisResult?.statusDistribution || [],
-      lastAnalysis: this.state.lastAnalysis,
-    };
-  }
 
-  @unstable_callable({ description: "Trigger fresh booking analysis from MCP" })
-  async refreshAnalysis() {
-    console.log("🔄 Manual refresh analysis triggered");
-    console.log("Note: Use Chat agent's executeBookingAnalysis tool for MCP data refresh");
-    return { 
-      success: false, 
-      message: "Use Chat agent's executeBookingAnalysis tool instead" 
-    };
-  }
 
-  @unstable_callable({ description: "Reset analysis state to allow auto-trigger to run again" })
+  @unstable_callable({
+    description: "Reset analysis state",
+  })
   async resetForTesting() {
-    console.log("🧪 [TEST] Resetting analysis state for testing auto-trigger");
+    console.log("🧪 [TEST] Resetting analysis state");
+    this.setState({
+      lastAnalysis: null,
+      bookings: [],
+      cachedTemplates: [],
+      templatesGeneratedAt: null,
+    });
+    return {
+      success: true,
+      message: "Analysis state reset successfully",
+    };
+  }
+
+  @unstable_callable({
+    description: "Manually trigger booking analysis from MCP (replaces automatic monitoring)",
+  })
+  async manualTriggerAnalysis() {
+    try {
+      console.log("🚀 [MANUAL] Manual booking analysis trigger requested");
+      
+      // Check if we already have analysis
+      if (this.state.lastAnalysis) {
+        console.log("ℹ️ [MANUAL] Analysis already exists, skipping");
+        return {
+          success: false,
+          message: "Analysis already completed. Use reset first if you want to re-run.",
+          hasExistingAnalysis: true,
+        };
+      }
+
+      // Note: Direct MCP communication removed to prevent hanging
+      // Manual trigger should be performed via Chat agent instead
+      console.log("ℹ️ [MANUAL] Direct MCP communication disabled to prevent hanging");
+      
+      return {
+        success: false,
+        message: "Manual trigger disabled - use Chat agent executeBookingAnalysis tool instead",
+      };
+    } catch (error) {
+      console.error("❌ [MANUAL] Error in manual trigger:", error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Manual trigger failed",
+      };
+    }
+  }
+
+  @unstable_callable({
+    description: "Show most common booking entries by customer",
+  })
+  async generateCommonBookingTemplates() {
+    try {
+      console.log("📋 Starting template generation");
+      const bookings = this.state.bookings;
+      console.log("📊 Available bookings:", bookings?.length || 0);
+
+      if (!bookings || bookings.length === 0) {
+        console.log("⚠️ No booking data available");
+        return {
+          success: false,
+          message: "No booking data available",
+          templates: [],
+        };
+      }
+
+    // Group bookings by customer and find their most common combination
+    const customerBookings = new Map<string, BookingData[]>();
+    bookings.forEach((booking) => {
+      if (!customerBookings.has(booking.customer)) {
+        customerBookings.set(booking.customer, []);
+      }
+      customerBookings.get(booking.customer)!.push(booking);
+    });
+
+    const templates: BookingTemplate[] = [];
+
+    // For each customer, find their most common booking combination
+    customerBookings.forEach((customerBookingList, customerName) => {
+      // Find most common equipment, surgeon, salesrep combination
+      const combinationFreq = new Map<string, { 
+        equipment: string; 
+        surgeon: string; 
+        salesrep: string; 
+        count: number 
+      }>();
+
+      customerBookingList.forEach((booking) => {
+        // Add null safety for booking properties
+        const equipment = booking.equipment || 'Unknown Equipment';
+        const surgeon = booking.surgeon || 'Unknown Surgeon';
+        const salesrep = booking.salesrep || 'Unknown Sales Rep';
+        
+        const key = `${equipment}|${surgeon}|${salesrep}`;
+        if (combinationFreq.has(key)) {
+          combinationFreq.get(key)!.count++;
+        } else {
+          combinationFreq.set(key, {
+            equipment,
+            surgeon,
+            salesrep,
+            count: 1
+          });
+        }
+      });
+
+      // Get the most common combination
+      const mostCommon = Array.from(combinationFreq.values())
+        .sort((a, b) => b.count - a.count)[0];
+
+      if (mostCommon) {
+        // Get customerId from the first booking for this customer
+        const firstBooking = customerBookingList[0];
+        const template: BookingTemplate = {
+          customer: customerName,
+          customerId: firstBooking.customerId || customerName,
+          equipment: mostCommon.equipment,
+          surgeon: mostCommon.surgeon,
+          salesrep: mostCommon.salesrep,
+          frequency: mostCommon.count,
+          totalBookings: customerBookingList.length,
+        };
+
+        templates.push(template);
+      }
+    });
+
+    // Sort by frequency (most common combinations first)
+    templates.sort((a, b) => b.frequency - a.frequency);
+
+    // Store templates in state
     this.setState({
       ...this.state,
-      lastAnalysis: null,
-      analysisResult: null,
-      totalBookings: 0,
-      totalValue: 0,
-      bookings: []
+      cachedTemplates: templates,
+      templatesGeneratedAt: new Date().toISOString(), // Store as string
     });
-    return { 
-      success: true, 
-      message: "Analysis state reset - auto-trigger will run again on next MCP detection" 
-    };
+
+    console.log(
+      `📋 Found ${templates.length} most common booking patterns from ${bookings.length} bookings`
+    );
+
+      return {
+        success: true,
+        message: `Found ${templates.length} common booking patterns`,
+        templates,
+        generatedAt: new Date().toISOString(),
+        sourceBookings: bookings.length,
+      };
+    } catch (error) {
+      console.error("❌ Error generating booking templates:", error);
+      console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack");
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Failed to generate templates",
+        templates: [],
+        generatedAt: new Date().toISOString(),
+        sourceBookings: this.state.bookings?.length || 0,
+      };
+    }
+  }
+
+  @unstable_callable({
+    description: "Get cached booking templates (returns stored templates without regenerating)",
+  })
+  async getCachedTemplates() {
+    try {
+      console.log("📋 Getting cached templates");
+      
+      return {
+        success: true,
+        templates: this.state.cachedTemplates || [],
+        generatedAt: this.state.templatesGeneratedAt || null, // Now it's already a string
+        sourceBookings: this.state.bookings?.length || 0,
+      };
+    } catch (error) {
+      console.error("❌ Error getting cached templates:", error);
+      return {
+        success: false,
+        templates: [],
+        generatedAt: null,
+        sourceBookings: 0,
+        error: error instanceof Error ? error.message : "Failed to get cached templates",
+      };
+    }
   }
 
   // REST endpoints for direct access
@@ -377,21 +285,40 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
     const url = new URL(request.url);
 
     if (request.method === "GET") {
-      switch (true) {
-        case url.pathname.endsWith("/analysis"):
-          return Response.json(await this.getAnalysis());
+      try {
+        switch (true) {
+          case url.pathname.endsWith("/bookings"):
+            return Response.json(await this.getBookings());
 
-        case url.pathname.endsWith("/bookings"):
-          return Response.json(await this.getBookings());
+          case url.pathname.endsWith("/reset"):
+            return Response.json(await this.resetForTesting());
 
-        case url.pathname.endsWith("/recommendations"):
-          return Response.json(await this.getRecommendations());
+          case url.pathname.endsWith("/templates"):
+            console.log("🔍 Templates endpoint called");
+            const templatesResult = await this.generateCommonBookingTemplates();
+            console.log("📋 Templates result:", templatesResult);
+            return Response.json(templatesResult);
 
-        case url.pathname.endsWith("/refresh"):
-          return Response.json(await this.refreshAnalysis());
+          case url.pathname.endsWith("/cached-templates"):
+            console.log("🔍 Cached templates endpoint called");
+            const cachedResult = await this.getCachedTemplates();
+            console.log("📋 Cached result:", cachedResult);
+            return Response.json(cachedResult);
 
-        case url.pathname.endsWith("/reset"):
-          return Response.json(await this.resetForTesting());
+          case url.pathname.endsWith("/manual-trigger"):
+            console.log("🔍 Manual trigger endpoint called");
+            const triggerResult = await this.manualTriggerAnalysis();
+            console.log("🚀 Manual trigger result:", triggerResult);
+            return Response.json(triggerResult);
+        }
+      } catch (error) {
+        console.error("❌ Error in booking analysis endpoint:", error);
+        console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack");
+        return Response.json({
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+          templates: [],
+        }, { status: 200 }); // Return 200 with error info instead of 500
       }
     }
 
@@ -400,11 +327,18 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
         const { bookings } = (await request.json()) as {
           bookings: BookingData[];
         };
-        return Response.json(await this.setBookings(bookings));
+        console.log("📊 Setting bookings:", bookings.length, "items");
+        const result = await this.setBookings(bookings);
+        console.log("✅ Bookings set successfully:", result);
+        return Response.json(result);
       } catch (error) {
+        console.error("❌ Error setting bookings:", error);
         return Response.json(
-          { error: "Invalid booking data" },
-          { status: 400 }
+          { 
+            success: false,
+            error: error instanceof Error ? error.message : "Invalid booking data" 
+          },
+          { status: 200 } // Return 200 with error info
         );
       }
     }

@@ -46,23 +46,33 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
 
         if (response.ok) {
           const result = (await response.json()) as {
+            success?: boolean;
             servers?: Record<string, any>;
+            error?: string;
           };
-          console.log("📋 Connected MCP servers via HTTP:", result.servers);
+          console.log("📋 MCP servers response:", result);
 
-          // Convert backend servers to frontend format
-          const backendServers = Object.entries(result.servers || {}).map(
-            ([id, server]: [string, any]) => ({
-              id,
-              name: server.name || "Unknown Server",
-              url: `${server.transport || "SSE"} • ${server.server_url}`,
-              transport: (server.transport || "SSE") as "SSE" | "HTTP",
-              actualUrl: server.server_url,
-              connected: server.state === "ready",
-            })
-          );
+          if (result.success !== false && result.servers) {
+            // Convert backend servers to frontend format
+            const backendServers = Object.entries(result.servers || {}).map(
+              ([id, server]: [string, any]) => ({
+                id,
+                name: server.name || "Unknown Server",
+                url: `${server.transport || "SSE"} • ${server.server_url}`,
+                transport: (server.transport || "SSE") as "SSE" | "HTTP",
+                actualUrl: server.server_url,
+                connected: server.state === "ready",
+              })
+            );
 
-          setServers(backendServers);
+            setServers(backendServers);
+          } else {
+            console.warn("⚠️ Server returned error:", result.error);
+            setServers([]); // Clear servers on error
+          }
+        } else {
+          console.error("❌ Response not ok:", response.status, response.statusText);
+          setServers([]); // Clear servers on error
         }
       } catch (error) {
         console.error("❌ Error loading connected servers:", error);
@@ -247,9 +257,7 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
 
       if (response.ok) {
         setServers((prev) =>
-          prev.map((s) =>
-            s.id === serverId ? { ...s, connected: false } : s
-          )
+          prev.map((s) => (s.id === serverId ? { ...s, connected: false } : s))
         );
         if (serverId === activeServerId) {
           setActiveServerId(null);
@@ -268,7 +276,6 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
         onAddServer={handleAddNewServer}
       />
       <div className="w-full">
-
         {/* Description */}
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Connect to Model Context Protocol servers to access additional AI
