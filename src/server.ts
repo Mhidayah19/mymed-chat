@@ -1,4 +1,7 @@
 import { routeAgentRequest, getAgentByName } from "agents";
+import { AGENT_NAMES, BOOKING_DEFAULTS } from "./constants";
+import type { McpToolArgs } from "./types";
+import { transformBookingArray } from "./utils/booking-transform";
 
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
@@ -19,6 +22,41 @@ const model = openai("gpt-4o-2024-11-20");
  * Chat Agent implementation that handles real-time AI chat interactions
  */
 export class Chat extends AIChatAgent<Env> {
+  // Override broadcast to handle WebSocket errors gracefully
+  broadcast(message: string, exclude?: string[]) {
+    try {
+      return super.broadcast(message, exclude);
+    } catch {
+      // Continue execution - don't let WebSocket errors break the agent
+    }
+  }
+
+  // Override onError to handle server errors gracefully
+  onError(connectionOrError: any, error?: unknown) {
+    if (arguments.length === 1) {
+      if (
+        connectionOrError?.message?.includes("WebSocket") ||
+        connectionOrError?.message?.includes("state")
+      ) {
+        return; // Silently handle WebSocket errors
+      }
+      console.error("Chat agent error:", connectionOrError);
+    } else {
+      if (
+        error?.toString()?.includes("WebSocket") ||
+        error?.toString()?.includes("state")
+      ) {
+        return; // Silently handle WebSocket errors
+      }
+      console.error("Connection error:", error);
+    }
+    // For other errors, let the default handler deal with it
+    try {
+      super.onError?.(connectionOrError, error);
+    } catch {
+      // Ignore parent error handler errors
+    }
+  }
 
   // Define use_prompt tool as class property
   private usePromptTool = {
@@ -29,11 +67,7 @@ export class Chat extends AIChatAgent<Env> {
         serverId: z.string().describe("Server ID"),
         arguments: z.record(z.any()).optional().describe("Prompt arguments"),
       }),
-      execute: async (args: {
-        name: string;
-        serverId: string;
-        arguments?: any;
-      }) => {
+      execute: async (args: McpToolArgs) => {
         try {
           // @ts-ignore - Temporary workaround for getPrompt typing issue
           const result = await this.mcp.getPrompt({
@@ -45,15 +79,12 @@ export class Chat extends AIChatAgent<Env> {
           // getPrompt executed successfully
           return result;
         } catch (error) {
-          console.error("❌ getPrompt error:", error);
-
-          // Try to provide more helpful error info
           const errorMsg = (error as Error).message;
           if (errorMsg.includes("Invalid arguments")) {
             return {
-              error: `Prompt "${args.name}" requires specific arguments. Error: ${errorMsg}`,
+              error: `Prompt "${args.name}" requires different arguments`,
               suggestion:
-                "The MCP server is expecting different or additional arguments. Check the server documentation for the correct argument structure.",
+                "Check server documentation for correct argument structure",
             };
           }
 
@@ -110,7 +141,6 @@ export class Chat extends AIChatAgent<Env> {
     // Collect all prompts from MCP servers
     const mcpPrompts = this.mcp.listPrompts();
 
-
     // Booking analysis tools for medical equipment analysis
     const bookingAnalysisTools = {
       getBookingData: {
@@ -120,7 +150,7 @@ export class Chat extends AIChatAgent<Env> {
           try {
             const bookingAgent = await getAgentByName(
               this.env.BookingAnalysisAgent,
-              "main-analyzer"
+              AGENT_NAMES.MAIN_ANALYZER
             );
             return await bookingAgent.getBookings();
           } catch (error) {
@@ -141,7 +171,7 @@ export class Chat extends AIChatAgent<Env> {
           try {
             const bookingAgent = await getAgentByName(
               this.env.BookingAnalysisAgent,
-              "main-analyzer"
+              AGENT_NAMES.MAIN_ANALYZER
             );
             return await bookingAgent.resetForTesting();
           } catch (error) {
@@ -158,13 +188,13 @@ export class Chat extends AIChatAgent<Env> {
         description:
           "Generate booking templates for each customer based on their most common patterns",
         parameters: z.object({}),
-        execute: async (): Promise<any> => {
+        execute: async () => {
           try {
             const bookingAgent = await getAgentByName(
               this.env.BookingAnalysisAgent,
-              "main-analyzer"
+              AGENT_NAMES.MAIN_ANALYZER
             );
-            return await bookingAgent.generateCommonBookingTemplates();
+            return await (bookingAgent as any).generateCommonBookingTemplates();
           } catch (error) {
             console.error(
               "Error calling BookingAnalysisAgent.generateCommonBookingTemplates:",
@@ -182,23 +212,11 @@ export class Chat extends AIChatAgent<Env> {
         execute: async () => {
           try {
             // Use Chat agent's MCP connections directly instead of separate agent
-            console.log("🚀 Starting booking analysis from Chat agent...");
-
-            // Check database and MCP state
-            const dbServers = this.sql`SELECT * FROM cf_agents_mcp_servers`;
-            console.log("📊 Database:", dbServers.length, "stored servers");
 
             // Get MCP servers from Chat agent
             const mcpState = this.getMcpServers();
 
             const servers = mcpState.servers || {};
-            console.log("🔧 Available MCP servers:", Object.keys(servers));
-
-            // Check MCP client manager state
-            console.log(
-              "🔗 Active connections:",
-              Object.keys(this.mcp.mcpConnections || {}).length
-            );
 
             // Find a server with booking tools
             let bookingTool = null;
@@ -253,11 +271,6 @@ export class Chat extends AIChatAgent<Env> {
               };
             }
 
-            console.log("🔄 Executing booking tool...");
-            console.log(
-              `📡 Calling tool: ${bookingTool.name} on server: ${targetServerId}`
-            );
-
             // Use Chat agent's MCP client to call the tool
             const mcpResult = await this.mcp.callTool({
               serverId: targetServerId,
@@ -276,7 +289,7 @@ export class Chat extends AIChatAgent<Env> {
             // Process the result and send to BookingAnalysisAgent for analysis
             const bookingAgent = await getAgentByName(
               this.env.BookingAnalysisAgent,
-              "main-analyzer"
+              AGENT_NAMES.MAIN_ANALYZER
             );
 
             // Extract booking data from MCP result
@@ -332,57 +345,9 @@ export class Chat extends AIChatAgent<Env> {
               }
             }
 
-            console.log(
-              "📊 Extracted",
-              bookingData.length,
-              "bookings from MCP"
-            );
-
             if (bookingData.length > 0) {
-              // Transform booking data to match BookingAnalysisAgent expected format
-              const transformedBookings = bookingData.map((booking: any) => {
-                // Extract equipment from items array (first item's materialId and description)
-                let equipment = "Unknown Equipment";
-                if (
-                  booking.items &&
-                  Array.isArray(booking.items) &&
-                  booking.items.length > 0
-                ) {
-                  const firstItem = booking.items[0];
-                  // Use materialId if available, fallback to description
-                  equipment =
-                    firstItem.materialId ||
-                    firstItem.description ||
-                    "Unknown Equipment";
-                }
-
-                const salesrep =
-                  booking.salesRepName ||
-                  booking.salesrep ||
-                  "Unknown Sales Rep";
-
-                return {
-                  id: booking.bookingId || booking.id || "unknown",
-                  customer:
-                    booking.customerName ||
-                    booking.customer ||
-                    "Unknown Customer",
-                  customerId: booking.customer || "unknown",
-                  surgeon: booking.surgeon || "Unknown Surgeon",
-                  salesrep: salesrep,
-                  equipment: equipment,
-                  date:
-                    booking.dayOfUse ||
-                    booking.createdOn ||
-                    booking.deliveryDate ||
-                    new Date().toISOString(),
-                  status:
-                    booking.bookingStatus || booking.status || "Unknown Status",
-                  value: parseFloat(
-                    booking.estimatedValue || booking.value || "0"
-                  ),
-                };
-              });
+              // Transform booking data using centralized utility
+              const transformedBookings = transformBookingArray(bookingData);
 
               // Send the transformed booking data to BookingAnalysisAgent for processing
               const analysisResult =
@@ -477,7 +442,7 @@ export class Chat extends AIChatAgent<Env> {
                   .join("\n");
                 argDetails = `\n  Arguments:\n${argList}`;
               }
-              return `- ${prompt.name}: ${prompt.description || "No description"} (Server: ${prompt.serverId || "unknown"})${argDetails}`;
+              return `- ${prompt.name}: ${prompt.description || "No description"} (Server: ${prompt.serverId || BOOKING_DEFAULTS.ID})${argDetails}`;
             })
             .join(
               "\n"
@@ -528,12 +493,6 @@ export class Chat extends AIChatAgent<Env> {
   // Internal method to execute booking analysis (for auto-triggering)
   private async executeBookingAnalysisInternal() {
     try {
-      console.log("🚀 Starting internal booking analysis execution...");
-
-      // Check database and MCP state
-      const dbServers = this.sql`SELECT * FROM cf_agents_mcp_servers`;
-      console.log("📊 Database:", dbServers.length, "stored servers");
-
       // Get MCP servers from Chat agent
       const mcpState = this.getMcpServers();
 
@@ -678,45 +637,8 @@ export class Chat extends AIChatAgent<Env> {
       console.log("📊 Extracted", bookingData.length, "bookings from MCP");
 
       if (bookingData.length > 0) {
-        // Transform booking data to match BookingAnalysisAgent expected format
-        const transformedBookings = bookingData.map((booking: any) => {
-          // Extract equipment from items array (first item's materialId and description)
-          let equipment = "Unknown Equipment";
-          if (
-            booking.items &&
-            Array.isArray(booking.items) &&
-            booking.items.length > 0
-          ) {
-            const firstItem = booking.items[0];
-            // Use materialId if available, fallback to description
-            equipment =
-              firstItem.materialId ||
-              firstItem.description ||
-              "Unknown Equipment";
-          }
-
-          const salesrep =
-            booking.salesRepName || booking.salesrep || "Unknown Sales Rep";
-
-          const transformed = {
-            id: booking.bookingId || booking.id || "unknown",
-            customer:
-              booking.customerName || booking.customer || "Unknown Customer",
-            customerId: booking.customer || "unknown",
-            surgeon: booking.surgeon || "Unknown Surgeon",
-            salesrep: salesrep,
-            equipment: equipment,
-            date:
-              booking.dayOfUse ||
-              booking.createdOn ||
-              booking.deliveryDate ||
-              new Date().toISOString(),
-            status: booking.bookingStatus || booking.status || "Unknown Status",
-            value: parseFloat(booking.estimatedValue || booking.value || "0"),
-          };
-
-          return transformed;
-        });
+        // Transform booking data using centralized utility
+        const transformedBookings = transformBookingArray(bookingData);
 
         // Send the transformed booking data to BookingAnalysisAgent for processing
         const analysisResult =
@@ -796,74 +718,6 @@ export class Chat extends AIChatAgent<Env> {
       }
     }
 
-    // Handle disconnecting ALL MCP servers + clean everything
-    if (
-      reqUrl.pathname.endsWith("disconnect-all-mcp") &&
-      request.method === "POST"
-    ) {
-      try {
-        console.log("🔌 Disconnecting ALL MCP servers and cleaning everything");
-
-        // Get list of all servers before disconnecting
-        const mcpState = this.getMcpServers();
-        const actualServers = mcpState.servers || {};
-        console.log("📋 Servers to remove:", Object.keys(actualServers));
-
-        // Disconnect all connections
-        await this.mcp.closeAllConnections();
-
-        // Remove each server from database
-        for (const [serverId, serverData] of Object.entries(actualServers)) {
-          try {
-            console.log(
-              "🗑️ Removing server from database:",
-              serverId,
-              serverData
-            );
-            await this.removeMcpServer(serverId);
-          } catch (removeError) {
-            console.warn(
-              "⚠️ Error removing server from database:",
-              serverId,
-              removeError
-            );
-          }
-        }
-
-        // Also try to clear the entire MCP servers table as a fallback
-        try {
-          console.log("🧹 Clearing entire MCP servers table");
-          // Access the SQLite database using the Agent framework method
-          this.sql`DELETE FROM cf_agents_mcp_servers`;
-          console.log("✅ MCP servers table cleared (fallback)");
-        } catch (dbError) {
-          console.warn("⚠️ Error clearing MCP servers table:", dbError);
-        }
-
-        // Force clear the cached tools by reinitializing the entire MCP manager
-        console.log("🧹 Reinitializing MCP manager to clear all caches");
-        const { MCPClientManager } = await import("agents/mcp/client");
-        this.mcp = new MCPClientManager(this.constructor.name, "0.0.1");
-
-        console.log(
-          "✅ All MCP servers disconnected, removed from database, and MCP manager reinitialized"
-        );
-
-        return new Response(JSON.stringify({ success: true }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      } catch (error) {
-        console.error("❌ Error disconnecting all MCP servers:", error);
-        return new Response(
-          JSON.stringify({ success: false, error: (error as Error).message }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
-    }
 
     // Handle removing MCP servers (disconnect + delete from database)
     if (reqUrl.pathname.endsWith("remove-mcp") && request.method === "POST") {
@@ -1124,71 +978,7 @@ export class Chat extends AIChatAgent<Env> {
       }
     }
 
-    // Handle manual database cleanup for MCP servers
-    if (
-      reqUrl.pathname.endsWith("force-clear-mcp-db") &&
-      request.method === "POST"
-    ) {
-      try {
-        console.log("🧹 Force clearing MCP servers database");
-
-        // Access the SQLite database using the Agent framework method
-        try {
-          // Clear the table
-          this.sql`DELETE FROM cf_agents_mcp_servers`;
-          console.log("🗑️ MCP servers table cleared");
-
-          // Verify the table is empty
-          const remainingServers = this
-            .sql`SELECT COUNT(*) as count FROM cf_agents_mcp_servers`;
-          const remainingCount =
-            remainingServers.length > 0 ? remainingServers[0].count : 0;
-          console.log("📊 Remaining servers in DB:", remainingCount);
-
-          // Also disconnect all active connections
-          await this.mcp.closeAllConnections();
-          console.log("🔌 All active connections closed");
-
-          // Reinitialize MCP manager
-          const { MCPClientManager } = await import("agents/mcp/client");
-          this.mcp = new MCPClientManager(this.constructor.name, "0.0.1");
-          console.log("🔄 MCP manager reinitialized");
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              message: "Database force cleared",
-              remainingCount: remainingCount || 0,
-            }),
-            {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
-            }
-          );
-        } catch (dbError) {
-          console.error("❌ Error with database operations:", dbError);
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: `Database error: ${(dbError as Error).message}`,
-            }),
-            {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            }
-          );
-        }
-      } catch (error) {
-        console.error("❌ Error force clearing MCP database:", error);
-        return new Response(
-          JSON.stringify({ success: false, error: (error as Error).message }),
-          {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
-    }
+    
 
     // Let the framework handle other requests by calling the parent method
     return (
