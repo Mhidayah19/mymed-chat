@@ -48,6 +48,20 @@ export interface BookingTemplate {
   salesrep: string;
   frequency: number;
   totalBookings: number;
+  // AI-enhanced fields
+  confidence?: number;
+  insights?: string;
+  suggestedBookingRequest?: {
+    customerId: string;
+    customerName: string;
+    equipment: string;
+    surgeon: string;
+    salesRepId: string;
+    salesRepName: string;
+    estimatedDate: string;
+    notes: string;
+    priority: "high" | "medium" | "low";
+  };
 }
 
 export interface BookingAnalysisState {

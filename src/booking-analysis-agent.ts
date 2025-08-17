@@ -1,31 +1,11 @@
 import { Agent, unstable_callable } from "agents";
 import { LOG_PREFIX } from "./constants";
 import type { BookingData, BookingAnalysisState } from "./types";
-import {
-  createErrorResponse,
-  createDetailedErrorResponse,
-} from "./utils/error-handling";
-import { analyzeBookingPatterns } from "./utils/booking-analysis";
-import {
-  createStateWithBookings,
-  createStateWithTemplates,
-  createResetState,
-  createBookingAnalysisResponse,
-  createSetBookingsResponse,
-  createCachedTemplatesResponse,
-  createEmptyTemplatesResponse,
-  hasValidBookings,
-  getBookingsCount,
-} from "./utils/state-management";
-import { getCurrentTimestamp } from "./utils/time";
-import { BookingRoutes, isBookingRoute } from "./utils/routing";
-import {
-  createJsonResponse,
-  createNotFoundResponse,
-  createErrorJsonResponse,
-} from "./utils/response";
+import { AIBookingAnalyzer } from "./utils/ai-booking-analyzer";
 
 export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
+  private aiAnalyzer = new AIBookingAnalyzer();
+
   initialState: BookingAnalysisState = {
     bookings: [],
     lastAnalysis: null,
@@ -39,32 +19,23 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
 
   @unstable_callable({ description: "Set booking data" })
   async setBookings(bookings: BookingData[]) {
-    const newState = createStateWithBookings(this.state, bookings);
-    this.setState(newState);
+    this.setState({
+      ...this.state,
+      bookings: [...bookings],
+      lastAnalysis: new Date(),
+      cachedTemplates: [],
+      templatesGeneratedAt: null,
+    });
 
     console.log(`${LOG_PREFIX.BOOKING} Stored ${bookings.length} bookings`);
-    return createSetBookingsResponse(bookings.length);
-  }
-
-  @unstable_callable({ description: "Get all booking data" })
-  async getBookings() {
     return {
-      bookings: this.state.bookings,
-      count: this.state.bookings.length,
+      success: true as const,
+      bookingsProcessed: bookings.length,
+      analysisTimestamp: new Date(),
     };
   }
 
-  @unstable_callable({
-    description: "Reset analysis state",
-  })
-  async resetForTesting() {
-    const newState = createResetState();
-    this.setState(newState);
-    return {
-      success: true,
-      message: "Analysis state reset",
-    };
-  }
+
 
   @unstable_callable({
     description: "Show most common booking entries by customer",
@@ -73,101 +44,83 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
     try {
       const bookings = this.state.bookings;
 
-      if (!hasValidBookings(bookings)) {
-        return createEmptyTemplatesResponse();
+      if (!bookings || bookings.length === 0) {
+        return {
+          success: false as const,
+          message: "No booking data available",
+          templates: [],
+        };
       }
 
-      const templates = analyzeBookingPatterns(bookings);
-      const newState = createStateWithTemplates(this.state, templates);
-      this.setState(newState);
+      // Use AI to analyze booking patterns and generate booking requests
+      const templates = await this.aiAnalyzer.analyzeBookingPatterns(bookings);
 
-      return createBookingAnalysisResponse(templates, bookings.length);
+      this.setState({
+        ...this.state,
+        cachedTemplates: [...templates],
+        templatesGeneratedAt: new Date().toISOString(),
+      });
+
+      return {
+        success: true as const,
+        message: `Found ${templates.length} patterns with AI analysis`,
+        templates: [...templates],
+        generatedAt: new Date().toISOString(),
+        sourceBookings: bookings.length,
+      };
     } catch (error) {
-      return createDetailedErrorResponse(
-        error,
-        "generating booking templates",
-        {
-          templates: [],
-          generatedAt: getCurrentTimestamp(),
-          sourceBookings: getBookingsCount(this.state.bookings),
-        }
-      );
+      console.error("Error generating booking templates:", error);
+      return {
+        success: false as const,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate templates",
+        templates: [],
+        generatedAt: new Date().toISOString(),
+        sourceBookings: this.state.bookings?.length || 0,
+      };
     }
   }
 
-  @unstable_callable({
-    description:
-      "Get cached booking templates (returns stored templates without regenerating)",
-  })
+  @unstable_callable({ description: "Get cached booking templates" })
   async getCachedTemplates() {
     try {
-      return createCachedTemplatesResponse(
-        this.state.cachedTemplates || [],
-        this.state.templatesGeneratedAt,
-        getBookingsCount(this.state.bookings)
-      );
+      return {
+        success: true as const,
+        templates: [...(this.state.cachedTemplates || [])],
+        generatedAt: this.state.templatesGeneratedAt,
+        sourceBookings: this.state.bookings?.length || 0,
+      };
     } catch (error) {
-      return createDetailedErrorResponse(error, "getting cached templates", {
+      console.error("Error getting cached templates:", error);
+      return {
+        success: false as const,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to get cached templates",
         templates: [],
         generatedAt: null,
         sourceBookings: 0,
-      });
+      };
     }
   }
 
-  // REST endpoints for direct access
+  // Essential REST endpoints for frontend panel
   async onRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    const { pathname } = url;
 
     if (request.method === "GET") {
-      try {
-        const { pathname } = url;
-
-        if (isBookingRoute(pathname, BookingRoutes.BOOKINGS)) {
-          return createJsonResponse(await this.getBookings());
-        }
-
-        if (isBookingRoute(pathname, BookingRoutes.RESET)) {
-          return createJsonResponse(await this.resetForTesting());
-        }
-
-        if (isBookingRoute(pathname, BookingRoutes.TEMPLATES)) {
-          return createJsonResponse(
-            await this.generateCommonBookingTemplates()
-          );
-        }
-
-        if (isBookingRoute(pathname, BookingRoutes.CACHED_TEMPLATES)) {
-          return createJsonResponse(await this.getCachedTemplates());
-        }
-      } catch (error) {
-        const errorResponse = createDetailedErrorResponse(
-          error,
-          "booking analysis endpoint",
-          { templates: [] }
-        );
-        return createErrorJsonResponse(errorResponse);
+      if (pathname.endsWith("/templates")) {
+        return Response.json(await this.generateCommonBookingTemplates());
+      }
+      if (pathname.endsWith("/cached-templates")) {
+        return Response.json(await this.getCachedTemplates());
       }
     }
 
-    if (
-      request.method === "POST" &&
-      isBookingRoute(url.pathname, BookingRoutes.BOOKINGS)
-    ) {
-      try {
-        const { bookings } = (await request.json()) as {
-          bookings: BookingData[];
-        };
-        return createJsonResponse(await this.setBookings(bookings));
-      } catch (error) {
-        const errorResponse = createErrorResponse(
-          error,
-          "Setting bookings failed"
-        );
-        return createErrorJsonResponse(errorResponse);
-      }
-    }
-
-    return createNotFoundResponse();
+    return new Response("Not Found", { status: 404 });
   }
 }

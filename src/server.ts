@@ -1,7 +1,6 @@
 import { routeAgentRequest, getAgentByName } from "agents";
 import { AGENT_NAMES, BOOKING_DEFAULTS } from "./constants";
 import type { McpToolArgs } from "./types";
-import { transformBookingArray } from "./utils/booking-transform";
 
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
@@ -143,46 +142,7 @@ export class Chat extends AIChatAgent<Env> {
 
     // Booking analysis tools for medical equipment analysis
     const bookingAnalysisTools = {
-      getBookingData: {
-        description: "Get all current booking data and statistics",
-        parameters: z.object({}),
-        execute: async () => {
-          try {
-            const bookingAgent = await getAgentByName(
-              this.env.BookingAnalysisAgent,
-              AGENT_NAMES.MAIN_ANALYZER
-            );
-            return await bookingAgent.getBookings();
-          } catch (error) {
-            console.error(
-              "Error calling BookingAnalysisAgent.getBookings:",
-              error
-            );
-            return { error: (error as Error).message };
-          }
-        },
-      },
 
-      resetBookingAnalysisForTesting: {
-        description:
-          "Reset booking analysis state to allow auto-trigger to run again (for testing purposes)",
-        parameters: z.object({}),
-        execute: async () => {
-          try {
-            const bookingAgent = await getAgentByName(
-              this.env.BookingAnalysisAgent,
-              AGENT_NAMES.MAIN_ANALYZER
-            );
-            return await bookingAgent.resetForTesting();
-          } catch (error) {
-            console.error(
-              "Error calling BookingAnalysisAgent.resetForTesting:",
-              error
-            );
-            return { error: (error as Error).message };
-          }
-        },
-      },
 
       generateBookingTemplates: {
         description:
@@ -240,8 +200,7 @@ export class Chat extends AIChatAgent<Env> {
                     (tool: any) =>
                       tool.name &&
                       (tool.name.toLowerCase().includes("booking") ||
-                        tool.name.toLowerCase().includes("getbooking") ||
-                        tool.name === "getBookings")
+                        tool.name.toLowerCase().includes("getbooking"))
                   );
 
                   if (bookingToolFound) {
@@ -346,12 +305,9 @@ export class Chat extends AIChatAgent<Env> {
             }
 
             if (bookingData.length > 0) {
-              // Transform booking data using centralized utility
-              const transformedBookings = transformBookingArray(bookingData);
-
-              // Send the transformed booking data to BookingAnalysisAgent for processing
+              // Send the booking data directly to AI BookingAnalysisAgent for processing
               const analysisResult =
-                await bookingAgent.setBookings(transformedBookings);
+                await bookingAgent.setBookings(bookingData);
               return {
                 ...analysisResult,
                 source: "mcp",
@@ -527,8 +483,7 @@ export class Chat extends AIChatAgent<Env> {
               (tool: any) =>
                 tool.name &&
                 (tool.name.toLowerCase().includes("booking") ||
-                  tool.name.toLowerCase().includes("getbooking") ||
-                  tool.name === "getBookings")
+                  tool.name.toLowerCase().includes("getbooking"))
             );
 
             if (bookingToolFound) {
@@ -637,12 +592,8 @@ export class Chat extends AIChatAgent<Env> {
       console.log("📊 Extracted", bookingData.length, "bookings from MCP");
 
       if (bookingData.length > 0) {
-        // Transform booking data using centralized utility
-        const transformedBookings = transformBookingArray(bookingData);
-
-        // Send the transformed booking data to BookingAnalysisAgent for processing
-        const analysisResult =
-          await bookingAgent.setBookings(transformedBookings);
+        // Send the booking data directly to AI BookingAnalysisAgent for processing
+        const analysisResult = await bookingAgent.setBookings(bookingData);
         return {
           ...analysisResult,
           source: "mcp",
@@ -717,7 +668,6 @@ export class Chat extends AIChatAgent<Env> {
         );
       }
     }
-
 
     // Handle removing MCP servers (disconnect + delete from database)
     if (reqUrl.pathname.endsWith("remove-mcp") && request.method === "POST") {
@@ -977,8 +927,6 @@ export class Chat extends AIChatAgent<Env> {
         );
       }
     }
-
-    
 
     // Let the framework handle other requests by calling the parent method
     return (
