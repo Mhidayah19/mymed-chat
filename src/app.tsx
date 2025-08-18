@@ -12,7 +12,6 @@ import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import McpSettings from "@/components/mcp/McpSettings";
-import BookingRecommendations from "@/components/booking/BookingRecommendations";
 
 // Icon imports
 import {
@@ -25,7 +24,6 @@ import {
   Stop,
   Image,
   Gear,
-  Lightbulb,
 } from "@phosphor-icons/react";
 
 export default function Chat() {
@@ -40,8 +38,6 @@ export default function Chat() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   // MCP tools are now handled automatically by the backend agent
   const [showMcpPanel, setShowMcpPanel] = useState(false);
-  const [activeTab, setActiveTab] = useState<"mcp" | "recommendations">("mcp");
-  const [hasBookingTemplates, setHasBookingTemplates] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -161,32 +157,6 @@ export default function Chat() {
     agentMessages.length > 0 && scrollToBottom();
   }, [agentMessages, scrollToBottom]);
 
-  // Check for booking templates on mount only (no auto-refresh to prevent hanging)
-  useEffect(() => {
-    const checkBookingTemplates = async () => {
-      try {
-        const { agentFetch } = await import("agents/client");
-        const response = await agentFetch({
-          agent: "booking-analysis-agent",
-          host: agent.host,
-          name: "main-analyzer",
-          path: "cached-templates",
-        });
-        if (response.ok) {
-          const data = (await response.json()) as { templates?: any[] };
-          setHasBookingTemplates(
-            Boolean(data.templates && data.templates.length > 0)
-          );
-        }
-      } catch (error) {
-        // Silent fail - templates check is not critical
-      }
-    };
-
-    checkBookingTemplates();
-    // Removed setInterval to prevent Workers hanging issues
-  }, [agent]);
-
   const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
     m.parts?.some(
       (part) =>
@@ -201,18 +171,18 @@ export default function Chat() {
   };
 
   return (
-    <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-white overflow-hidden relative">
+    <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden relative">
       <HasOpenAIKey />
 
       {/* Main Chat Container - stays centered */}
-      <div className="h-[calc(100vh-2rem)] w-full max-w-lg shadow-xl rounded-md overflow-hidden border border-gray-200 flex flex-col z-10 bg-white">
+      <div className="h-[calc(100vh-2rem)] w-full max-w-lg shadow-xl rounded-md overflow-hidden border border-neutral-300 dark:border-neutral-800 flex flex-col z-10">
         {/* Chat Header */}
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 sticky top-0 z-10 bg-white">
+        <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
           <div className="flex items-center justify-center h-8 w-8">
             <svg
               width="28px"
               height="28px"
-              className="text-[#2F366D]"
+              className="text-[#F48120]"
               data-icon="agents"
             >
               <title>Cloudflare Agents</title>
@@ -227,9 +197,9 @@ export default function Chat() {
           </div>
 
           <div className="flex-1">
-            <h2 className="font-semibold text-base text-[#2F366D]">MyMediset Chat</h2>
-            <p className="text-xs text-[#23A1B8]">
-              🔗 AI-powered medical equipment assistant
+            <h2 className="font-semibold text-base">AI Chat Agent</h2>
+            <p className="text-xs text-green-600 dark:text-green-400">
+              🔗 MCP tools managed by backend
             </p>
           </div>
 
@@ -238,20 +208,10 @@ export default function Chat() {
               variant="ghost"
               size="md"
               shape="square"
-              className="rounded-full h-9 w-9 relative"
-              onClick={() => {
-                setShowMcpPanel((prev) => !prev);
-                if (hasBookingTemplates && !showMcpPanel) {
-                  setActiveTab("recommendations");
-                }
-              }}
+              className="rounded-full h-9 w-9"
+              onClick={() => setShowMcpPanel((prev) => !prev)}
             >
               <Gear size={20} />
-              {hasBookingTemplates && !showMcpPanel && (
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#D94A57] rounded-full flex items-center justify-center">
-                  <Lightbulb size={8} className="text-white" />
-                </div>
-              )}
             </Button>
             <Bug size={16} />
             <Toggle
@@ -285,24 +245,24 @@ export default function Chat() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
           {agentMessages.length === 0 && (
             <div className="h-full flex items-center justify-center">
-              <Card className="p-6 bg-gray-50 border border-gray-200">
+              <Card className="p-6 bg-neutral-100 dark:bg-neutral-900">
                 <div className="text-center space-y-4">
-                  <div className="bg-[#23A1B8]/10 text-[#23A1B8] rounded-full p-3 inline-flex">
+                  <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
                     <Robot size={24} />
                   </div>
-                  <h3 className="font-semibold text-lg text-[#2F366D]">Welcome to MyMediset Chat</h3>
-                  <p className="text-gray-600 text-sm">
-                    Start a conversation with your medical equipment assistant. Try asking
+                  <h3 className="font-semibold text-lg">Welcome to AI Chat</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Start a conversation with your AI assistant. Try asking
                     about:
                   </p>
                   <ul className="text-sm text-left space-y-2">
                     <li className="flex items-center gap-2">
-                      <span className="text-[#23A1B8]">•</span>
-                      <span className="text-gray-700">Surgical instrument tracking</span>
+                      <span className="text-[#F48120]">•</span>
+                      <span>Weather information for any city</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <span className="text-[#23A1B8]">•</span>
-                      <span className="text-gray-700">Equipment loan management</span>
+                      <span className="text-[#F48120]">•</span>
+                      <span>Local time in different locations</span>
                     </li>
                   </ul>
                 </div>
@@ -344,10 +304,10 @@ export default function Chat() {
                               // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
                               <div key={i}>
                                 <Card
-                                  className={`p-3 rounded-md ${
+                                  className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
                                     isUser
-                                      ? "bg-[#23A1B8] text-white rounded-br-none"
-                                      : "bg-gray-50 border border-gray-200 rounded-bl-none text-gray-800"
+                                      ? "rounded-br-none"
+                                      : "rounded-bl-none border-assistant-border"
                                   } relative`}
                                 >
                                   <MemoizedMarkdown
@@ -479,7 +439,7 @@ data: ${base64Data}
             setTextareaHeight("auto"); // Reset height after submission
             removeImage(); // Clear image after submission
           }}
-          className="p-3 bg-white border-t border-gray-200"
+          className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
         >
           {/* Hidden file input */}
           <input
@@ -521,7 +481,7 @@ data: ${base64Data}
                     ? "Please respond to the tool confirmation above..."
                     : "Send a message..."
                 }
-                className="flex w-full border border-gray-300 px-3 py-2 ring-offset-background placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#23A1B8] focus-visible:border-[#23A1B8] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 bg-white text-gray-800"
+                className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2  ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
                 value={agentInput}
                 onChange={handleCustomInputChange}
                 onKeyDown={(e) => {
@@ -546,8 +506,8 @@ data: ${base64Data}
                   disabled={pendingToolCallConfirmation}
                   className={`inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 rounded-full p-1.5 h-fit border ${
                     selectedImage
-                      ? "bg-[#23A1B8]/10 hover:bg-[#23A1B8]/20 text-[#23A1B8] border-[#23A1B8]/30"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-600 border-gray-300"
+                      ? "bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+                      : "bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
                   }`}
                   aria-label="Upload image"
                 >
@@ -558,7 +518,7 @@ data: ${base64Data}
                   <button
                     type="button"
                     onClick={stop}
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-[#D94A57] text-white hover:bg-[#D94A57]/90 rounded-full p-1.5 h-fit border border-[#D94A57]"
+                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
                     aria-label="Stop generation"
                   >
                     <Stop size={16} />
@@ -566,7 +526,7 @@ data: ${base64Data}
                 ) : (
                   <button
                     type="submit"
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-[#23A1B8] text-white hover:bg-[#23A1B8]/90 rounded-full p-1.5 h-fit border border-[#23A1B8]"
+                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
                     disabled={
                       pendingToolCallConfirmation ||
                       (!agentInput.trim() && !selectedImage)
@@ -585,7 +545,7 @@ data: ${base64Data}
       {/* MCP Tools Panel - positioned to extend from right edge of centered chat container */}
       {showMcpPanel && (
         <div
-          className="fixed h-[calc(100vh-2rem)] w-80 bg-white border border-gray-200 border-l-0 shadow-xl rounded-r-md overflow-hidden z-20"
+          className="fixed h-[calc(100vh-2rem)] w-80 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 border-l-0 shadow-xl rounded-r-md overflow-hidden z-20"
           style={{
             left: `calc(50% + ${512 / 2}px)`, // 50% (center) + half of max-w-lg (256px)
             top: "1rem",
@@ -593,18 +553,14 @@ data: ${base64Data}
         >
           <div className="h-full flex flex-col">
             {/* Panel Header */}
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 bg-white">
+            <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3">
               <div className="flex items-center justify-center h-8 w-8">
-                <Gear size={20} className="text-[#2F366D]" />
+                <Gear size={20} className="text-[#F48120]" />
               </div>
               <div className="flex-1">
-                <h2 className="font-semibold text-base text-[#2F366D]">
-                  {activeTab === "mcp" ? "MCP Settings" : "Booking Analysis"}
-                </h2>
-                <p className="text-xs text-gray-600">
-                  {activeTab === "mcp"
-                    ? "Configure Model Context Protocol servers"
-                    : "Recommended booking patterns and templates"}
+                <h2 className="font-semibold text-base">MCP Settings</h2>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Configure Model Context Protocol servers
                 </p>
               </div>
               <Button
@@ -618,37 +574,9 @@ data: ${base64Data}
               </Button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-gray-200 bg-white">
-              <button
-                onClick={() => setActiveTab("mcp")}
-                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === "mcp"
-                    ? "text-[#23A1B8] border-b-2 border-[#23A1B8] bg-gray-50"
-                    : "text-gray-600 hover:text-[#2F366D]"
-                }`}
-              >
-                MCP Servers
-              </button>
-              <button
-                onClick={() => setActiveTab("recommendations")}
-                className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === "recommendations"
-                    ? "text-[#23A1B8] border-b-2 border-[#23A1B8] bg-gray-50"
-                    : "text-gray-600 hover:text-[#2F366D]"
-                }`}
-              >
-                Booking Analysis
-              </button>
-            </div>
-
             {/* Panel Content */}
             <div className="flex-1 overflow-y-auto p-4">
-              {activeTab === "mcp" ? (
-                <McpSettings agent={agent} />
-              ) : (
-                <BookingRecommendations agent={agent} />
-              )}
+              <McpSettings agent={agent} />
             </div>
           </div>
         </div>
