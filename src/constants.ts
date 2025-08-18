@@ -2,7 +2,7 @@
  * Application constants for agents and logging
  */
 
-// Agent names and identifiers  
+// Agent names and identifiers
 export const AGENT_NAMES = {
   MAIN_ANALYZER: "main-analyzer",
 } as const;

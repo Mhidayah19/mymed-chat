@@ -105,7 +105,7 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
-    // Collect all tools, including MCP tools
+    // Collect and filter MCP tools
     const mcpTools = this.mcp.unstable_getAITools();
 
     // Filter out problematic tools
@@ -145,8 +145,6 @@ export class Chat extends AIChatAgent<Env> {
 
     // Booking analysis tools for medical equipment analysis
     const bookingAnalysisTools = {
-
-
       generateBookingTemplates: {
         description:
           "Generate booking templates for each customer based on their most common patterns",
@@ -168,6 +166,58 @@ export class Chat extends AIChatAgent<Env> {
         },
       },
 
+      getBookingTemplate: {
+        description:
+          "Get a complete booking request body template for a customer based on their usual booking patterns. Use this when user asks to create a booking for a specific customer.",
+        parameters: z.object({
+          customerName: z.string().describe("Customer name or ID to look up"),
+          surgeryDate: z
+            .string()
+            .optional()
+            .describe("Surgery date (e.g., 'tomorrow', '2024-01-15')"),
+          surgeryTime: z
+            .string()
+            .optional()
+            .describe("Surgery time (e.g., '2pm', '14:00')"),
+          notes: z
+            .string()
+            .optional()
+            .describe("Additional notes for the booking"),
+          isDraft: z
+            .boolean()
+            .optional()
+            .describe("Whether to create as draft (default: true)"),
+        }),
+        execute: async (args: {
+          customerName: string;
+          surgeryDate?: string;
+          surgeryTime?: string;
+          notes?: string;
+          isDraft?: boolean;
+        }) => {
+          try {
+            const bookingAgent = await getAgentByName(
+              this.env.BookingAnalysisAgent,
+              AGENT_NAMES.MAIN_ANALYZER
+            );
+            return await (bookingAgent as any).generateBookingRequest(
+              args.customerName,
+              {
+                surgeryDate: args.surgeryDate,
+                surgeryTime: args.surgeryTime,
+                notes: args.notes,
+                isDraft: args.isDraft,
+              }
+            );
+          } catch (error) {
+            console.error(
+              "Error calling BookingAnalysisAgent.generateBookingRequest:",
+              error
+            );
+            return { error: (error as Error).message };
+          }
+        },
+      },
 
       executeBookingAnalysis: {
         description:
@@ -178,14 +228,17 @@ export class Chat extends AIChatAgent<Env> {
             // Find booking tool using helper method
             const bookingToolInfo = this.findBookingTool();
             if (!bookingToolInfo) {
-              console.warn("⚠️ No booking tool found on any connected MCP server");
+              console.warn(
+                "⚠️ No booking tool found on any connected MCP server"
+              );
               return {
                 success: false,
                 message: "No MCP booking tool available",
               };
             }
 
-            const { tool: bookingTool, serverId: targetServerId } = bookingToolInfo;
+            const { tool: bookingTool, serverId: targetServerId } =
+              bookingToolInfo;
 
             // Use Chat agent's MCP client to call the tool
             const mcpResult = await this.mcp.callTool({
@@ -200,7 +253,12 @@ export class Chat extends AIChatAgent<Env> {
 
             console.log("📊 MCP booking result received:");
             console.log("Type:", typeof mcpResult);
-            console.log("Keys:", mcpResult && typeof mcpResult === "object" ? Object.keys(mcpResult) : "N/A");
+            console.log(
+              "Keys:",
+              mcpResult && typeof mcpResult === "object"
+                ? Object.keys(mcpResult)
+                : "N/A"
+            );
             console.log("Full result:", JSON.stringify(mcpResult, null, 2));
 
             // Process the result and send to BookingAnalysisAgent for analysis
@@ -316,13 +374,47 @@ export class Chat extends AIChatAgent<Env> {
         // Stream the AI response using OpenAI
         const result = streamText({
           model,
-          system: `You are a helpful assistant that can analyze images and do various tasks.
+          system: `You are a helpful assistant for MyMediset medical equipment booking system. You can analyze images, manage bookings, and help with various tasks.
 
+          ## Booking Creation Workflow
+          When user requests "create booking for [Customer] usuals" or similar:
+          1. FIRST: Use getBookingTemplate tool to fetch the customer's booking template with any customizations
+          2. Show the getBookingTemplate response.requestBody in a clear, readable format.
+          3. Ask if they want to modify anything (times, dates, equipment) before creating the booking
+          4. If they confirm or make modifications, use the appropriate MCP createBooking tool with the COMPLETE requestBody from getBookingTemplate response
+          5. CRITICAL: Pass the entire requestBody object from getBookingTemplate response directly to createBooking - do not reconstruct or modify the request or miss any fields
+          6. NEVER create your own request object - ALWAYS use the complete requestBody from getBookingTemplate
+          7. The requestBody from getBookingTemplate includes ALL required fields: customerId, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
+          8. Return the booking creation result to the user
+
+          ## Available Tools
+          - getBookingTemplate: Fetches customer's booking template with customizations (date, time, notes)
+          - generateBookingTemplates: Creates templates from historical booking analysis
+          - executeBookingAnalysis: Analyzes booking data from MCP servers
+          - MCP tools: Various tools from connected servers (createBooking, getBooking, etc.)
+
+          ## Example Interactions
+          User: "create John's usual booking at 2pm tomorrow"
+          → Use getBookingTemplate with customerName="John", surgeryTime="2pm", surgeryDate="tomorrow"
+          → Show the generated request body details
+          → Ask for confirmation
+          → If confirmed, use createBooking MCP tool with the exact requestBody from getBookingTemplate response
           
+          CRITICAL EXAMPLE:
+          ✅ CORRECT: Use complete requestBody from getBookingTemplate
+          const templateResult = await getBookingTemplate({customerName: "John"});
+          await createBooking(templateResult.requestBody);  // ← Use entire requestBody object
+          
+          ❌ WRONG: Never reconstruct the request
+          await createBooking({customer: "John", items: [{...}]}); // ← Never do this
 
           If the user asks to schedule a task, use the schedule tool to schedule the task.${promptsContext}
           
-          IMPORTANT: Only use MCP prompts when the user explicitly asks for them by name or function. For general image analysis or conversation, respond directly using your built-in capabilities without automatically invoking MCP tools.`,
+          IMPORTANT: 
+          - Only use MCP prompts when the user explicitly asks for them by name or function
+          - For booking creation, ALWAYS show the template first before creating
+          - Be helpful in explaining booking details and offering modifications
+          - For general image analysis or conversation, respond directly using your built-in capabilities`,
           messages: processedMessagesWithImages as CoreMessage[],
           tools: allTools,
           experimental_telemetry: {
@@ -336,7 +428,6 @@ export class Chat extends AIChatAgent<Env> {
             } catch (finishError) {
               console.error("🚨 Error in onFinish callback:", finishError);
             }
-            // await this.mcp.closeConnection(mcpConnection.id);
           },
           onError: (error: any) => {
             console.error("🚨 Error while streaming:", error);
@@ -365,7 +456,8 @@ export class Chat extends AIChatAgent<Env> {
         if (item.type === "text" && item.text) {
           try {
             const parsed = JSON.parse(item.text);
-            if (parsed.bookings && Array.isArray(parsed.bookings)) return parsed.bookings;
+            if (parsed.bookings && Array.isArray(parsed.bookings))
+              return parsed.bookings;
             if (parsed.data && Array.isArray(parsed.data)) return parsed.data;
             if (Array.isArray(parsed)) return parsed;
           } catch (parseError) {
@@ -377,7 +469,8 @@ export class Chat extends AIChatAgent<Env> {
 
     // Handle direct .data or .bookings property
     if (mcpResult.data && Array.isArray(mcpResult.data)) return mcpResult.data;
-    if (mcpResult.bookings && Array.isArray(mcpResult.bookings)) return mcpResult.bookings;
+    if (mcpResult.bookings && Array.isArray(mcpResult.bookings))
+      return mcpResult.bookings;
 
     return [];
   }
@@ -396,7 +489,7 @@ export class Chat extends AIChatAgent<Env> {
       ) {
         try {
           const serverTools = this.mcp.listTools();
-          
+
           const bookingTool = serverTools.find(
             (tool: any) =>
               tool.name &&
@@ -405,11 +498,16 @@ export class Chat extends AIChatAgent<Env> {
           );
 
           if (bookingTool) {
-            console.log(`✅ Found booking tool "${bookingTool.name}" on server ${serverId}`);
+            console.log(
+              `✅ Found booking tool "${bookingTool.name}" on server ${serverId}`
+            );
             return { tool: bookingTool, serverId };
           }
         } catch (toolListError) {
-          console.warn(`⚠️ Could not list tools for server ${serverId}:`, toolListError);
+          console.warn(
+            `⚠️ Could not list tools for server ${serverId}:`,
+            toolListError
+          );
         }
       }
     }
@@ -451,7 +549,12 @@ export class Chat extends AIChatAgent<Env> {
 
       console.log("📊 MCP booking result received:");
       console.log("Type:", typeof mcpResult);
-      console.log("Keys:", mcpResult && typeof mcpResult === "object" ? Object.keys(mcpResult) : "N/A");
+      console.log(
+        "Keys:",
+        mcpResult && typeof mcpResult === "object"
+          ? Object.keys(mcpResult)
+          : "N/A"
+      );
       console.log("Full result:", JSON.stringify(mcpResult, null, 2));
 
       // Process the result and send to BookingAnalysisAgent for analysis
@@ -516,9 +619,15 @@ export class Chat extends AIChatAgent<Env> {
         }
 
         // Auto-trigger booking analysis once when servers are confirmed connected
-        if (!this.autoAnalysisTriggered && dbServers.length > 0 && Object.keys(actualServers).length > 0) {
+        if (
+          !this.autoAnalysisTriggered &&
+          dbServers.length > 0 &&
+          Object.keys(actualServers).length > 0
+        ) {
           this.autoAnalysisTriggered = true;
-          console.log("🚀 One-time auto-trigger: MCP servers confirmed connected");
+          console.log(
+            "🚀 One-time auto-trigger: MCP servers confirmed connected"
+          );
           // Use setTimeout to avoid blocking the list response
           setTimeout(async () => {
             try {
@@ -618,7 +727,9 @@ export class Chat extends AIChatAgent<Env> {
           );
           await bookingAgent.setBookings([]);
           this.autoAnalysisTriggered = false;
-          console.log("✅ Booking analysis and auto-trigger flag reset after MCP server removal");
+          console.log(
+            "✅ Booking analysis and auto-trigger flag reset after MCP server removal"
+          );
         } catch (resetError) {
           console.warn("⚠️ Failed to reset booking analysis:", resetError);
         }
@@ -703,7 +814,6 @@ export class Chat extends AIChatAgent<Env> {
         );
         console.log("✅ MCP server added successfully");
 
-
         return new Response(
           JSON.stringify({
             success: true,
@@ -739,7 +849,6 @@ export class Chat extends AIChatAgent<Env> {
 
         // Let the MCP manager handle the token exchange
         await this.mcp.handleCallbackRequest(request);
-
 
         return new Response(JSON.stringify({ status: "success" }), {
           status: 200,

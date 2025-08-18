@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { agentFetch } from "agents/client";
 import AddServerModal from "./AddServerModal";
+import BookingRecommendations from "../booking/BookingRecommendations";
 
 interface Server {
   id: string;
@@ -28,6 +29,7 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
   const [servers, setServers] = useState<Server[]>([]);
   const [activeServerId, setActiveServerId] = useState<string | null>(null);
   const [prompts, setPrompts] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<"servers" | "bookings">("servers");
 
   // MCP connection is now handled by the backend agent
   // const activeServer = servers.find((s) => s.id === activeServerId);
@@ -286,21 +288,51 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
           tools.
         </p>
 
-        {/* Add Server Button */}
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            {servers.length} server{servers.length !== 1 ? "s" : ""} configured
-          </span>
-          <div className="flex gap-2">
+        {/* Tab Navigation */}
+        <div className="border-b border-neutral-200 dark:border-neutral-700 mb-4">
+          <nav className="-mb-px flex space-x-8">
             <button
-              onClick={handleAddServer}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-md hover:bg-gray-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              onClick={() => setActiveTab("servers")}
+              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "servers"
+                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
+              }`}
             >
-              <Plus className="w-4 h-4" />
-              Add Server
+              <Network className="w-4 h-4 mr-2 inline" />
+              MCP Servers
             </button>
-          </div>
+            <button
+              onClick={() => setActiveTab("bookings")}
+              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "bookings"
+                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
+              }`}
+            >
+              📊 Booking Analysis
+            </button>
+          </nav>
         </div>
+
+        {/* MCP Servers Tab Content */}
+        {activeTab === "servers" && (
+          <div>
+            {/* Add Server Button */}
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {servers.length} server{servers.length !== 1 ? "s" : ""} configured
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAddServer}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-md hover:bg-gray-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Server
+                </button>
+              </div>
+            </div>
 
         {/* Server List */}
         <div className="space-y-3">
@@ -410,6 +442,15 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+          </div>
+        )}
+
+        {/* Booking Analysis Tab Content */}
+        {activeTab === "bookings" && (
+          <div>
+            <BookingRecommendations agent={agent} />
           </div>
         )}
       </div>

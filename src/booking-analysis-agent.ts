@@ -35,8 +35,6 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
     };
   }
 
-
-
   @unstable_callable({
     description: "Show most common booking entries by customer",
   })
@@ -90,6 +88,164 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
       templates: [...(this.state.cachedTemplates || [])],
       generatedAt: this.state.templatesGeneratedAt,
       sourceBookings: this.state.bookings?.length || 0,
+    };
+  }
+
+  @unstable_callable({
+    description:
+      "Generate complete booking request body for a customer based on their usual patterns",
+  })
+  async generateBookingRequest(
+    customerName: string,
+    customizations?: {
+      surgeryDate?: string; // ISO string or relative like "tomorrow"
+      surgeryTime?: string; // e.g., "2pm", "14:00"
+      deliveryTime?: string;
+      notes?: string;
+      isDraft?: boolean;
+    }
+  ) {
+    try {
+      const templates = this.state.cachedTemplates || [];
+
+      // Find customer template (case-insensitive)
+      const template = templates.find(
+        (t) =>
+          t.customer.toLowerCase().includes(customerName.toLowerCase()) ||
+          t.customerId.toLowerCase().includes(customerName.toLowerCase())
+      );
+
+      if (!template) {
+        return {
+          success: false as const,
+          error: `No template found for customer "${customerName}". Available customers: ${templates.map((t) => t.customer).join(", ")}`,
+        };
+      }
+
+      // Generate booking request body using frontend logic
+      const bookingRequest = this.generateBookingRequestBody(
+        template,
+        customizations
+      );
+
+      return {
+        success: true as const,
+        customer: template.customer,
+        customerId: template.customerId,
+        confidence: template.confidence || 0,
+        requestBody: bookingRequest,
+        templateUsed: {
+          equipment: template.equipment,
+          surgeon: template.surgeon,
+          salesrep: template.salesrep,
+          frequency: template.frequency,
+          totalBookings: template.totalBookings,
+        },
+      };
+    } catch (error) {
+      console.error("Error generating booking request:", error);
+      return {
+        success: false as const,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate booking request",
+      };
+    }
+  }
+
+  /**
+   * Private method that replicates the frontend's booking request body generation logic
+   */
+  private generateBookingRequestBody(template: any, customizations?: any) {
+    // Parse surgery date
+    let surgeryDate = new Date();
+    if (customizations?.surgeryDate) {
+      if (customizations.surgeryDate === "tomorrow") {
+        surgeryDate = new Date();
+        surgeryDate.setDate(surgeryDate.getDate() + 1);
+      } else {
+        surgeryDate = new Date(customizations.surgeryDate);
+      }
+    } else {
+      // Default to next business day
+      surgeryDate = new Date();
+      surgeryDate.setDate(surgeryDate.getDate() + 1);
+    }
+
+    // Skip weekends - find next business day
+    while (surgeryDate.getDay() === 0 || surgeryDate.getDay() === 6) {
+      surgeryDate.setDate(surgeryDate.getDate() + 1);
+    }
+
+    // Parse surgery time
+    let surgeryHour = 8; // Default 8 AM
+    let surgeryMinute = 0;
+    if (customizations?.surgeryTime) {
+      const timeMatch = customizations.surgeryTime.match(
+        /(\d+):?(\d*)\s*(am|pm)?/i
+      );
+      if (timeMatch) {
+        surgeryHour = parseInt(timeMatch[1]);
+        surgeryMinute = parseInt(timeMatch[2] || "0");
+        if (timeMatch[3]?.toLowerCase() === "pm" && surgeryHour < 12) {
+          surgeryHour += 12;
+        }
+      }
+    }
+
+    // Create surgery schedule
+    const dayOfUse = new Date(surgeryDate);
+    dayOfUse.setHours(surgeryHour, surgeryMinute, 0, 0);
+
+    const endOfUse = new Date(surgeryDate);
+    endOfUse.setHours(18, 0, 0, 0); // End at 6 PM
+
+    // Delivery day before at 10 AM (or custom time)
+    const deliveryDate = new Date(surgeryDate);
+    deliveryDate.setDate(deliveryDate.getDate() - 1);
+    deliveryDate.setHours(10, 0, 0, 0);
+
+    // Return day after at 4 PM
+    const returnDate = new Date(surgeryDate);
+    returnDate.setDate(returnDate.getDate() + 1);
+    returnDate.setHours(16, 0, 0, 0);
+
+    // Convert equipment name to material ID
+    const materialId = template.equipment
+      .toUpperCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^A-Z0-9-]/g, "");
+
+    // Generate booking request body (matches frontend logic)
+    return {
+      items: [
+        {
+          quantity: 1,
+          materialId: materialId || "UNKNOWN-EQUIPMENT",
+        },
+      ],
+      notes: [
+        {
+          language: "EN",
+          noteContent:
+            customizations?.notes ||
+            `${template.equipment} - ${template.surgeon}`,
+        },
+      ],
+      isDraft: customizations?.isDraft !== false, // Default to draft
+      currency: "EUR",
+      customerId: template.customerId,
+      dayOfUse: dayOfUse.toISOString(),
+      endOfUse: endOfUse.toISOString(),
+      returnDate: returnDate.toISOString(),
+      description: template.equipment,
+      surgeryType: "OR",
+      deliveryDate: deliveryDate.toISOString(),
+      isSimulation: true,
+      collectionDate: returnDate.toISOString(),
+      reservationType: "01",
+      surgeryDescription: template.surgeon,
     };
   }
 
