@@ -85,26 +85,12 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
 
   @unstable_callable({ description: "Get cached booking templates" })
   async getCachedTemplates() {
-    try {
-      return {
-        success: true as const,
-        templates: [...(this.state.cachedTemplates || [])],
-        generatedAt: this.state.templatesGeneratedAt,
-        sourceBookings: this.state.bookings?.length || 0,
-      };
-    } catch (error) {
-      console.error("Error getting cached templates:", error);
-      return {
-        success: false as const,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to get cached templates",
-        templates: [],
-        generatedAt: null,
-        sourceBookings: 0,
-      };
-    }
+    return {
+      success: true as const,
+      templates: [...(this.state.cachedTemplates || [])],
+      generatedAt: this.state.templatesGeneratedAt,
+      sourceBookings: this.state.bookings?.length || 0,
+    };
   }
 
   // Essential REST endpoints for frontend panel

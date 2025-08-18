@@ -127,7 +127,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
         <div className="flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
           <span className="ml-2 text-sm text-neutral-600 dark:text-neutral-400">
-            Loading most common bookings...
+            Loading recommended bookings...
           </span>
         </div>
       </Card>
@@ -141,7 +141,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
         <div className="flex items-center gap-2">
           <FileText size={20} className="text-blue-500" />
           <h3 className="font-semibold text-lg text-neutral-900 dark:text-neutral-100">
-            Most Common Bookings
+            Recommended Bookings
           </h3>
         </div>
       </div>
@@ -156,7 +156,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
         </Card>
       )}
 
-      {/* Most Common Bookings Section */}
+      {/* Recommended Bookings Section */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <Button
@@ -173,7 +173,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
             ) : (
               <>
                 <ArrowClockwise size={16} className="mr-2" />
-                Show Common Bookings
+                Show Recommended Bookings
               </>
             )}
           </Button>
@@ -324,10 +324,10 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
             <div className="text-center">
               <FileText size={32} className="mx-auto text-neutral-400 mb-3" />
               <h4 className="font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                No Common Bookings Found
+                No Recommended Bookings Found
               </h4>
               <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-                Click the button above to analyze the most common booking
+                Click the button above to analyze the recommended booking
                 combinations by customer.
               </p>
             </div>
