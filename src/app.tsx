@@ -182,7 +182,7 @@ export default function Chat() {
             <svg
               width="28px"
               height="28px"
-              className="text-[#F48120]"
+              className="text-[#2F366D]"
               data-icon="agents"
             >
               <title>Cloudflare Agents</title>
@@ -197,7 +197,7 @@ export default function Chat() {
           </div>
 
           <div className="flex-1">
-            <h2 className="font-semibold text-base">AI Chat Agent</h2>
+            <h2 className="font-semibold text-gradient-mediset-linear">AI Chat Agent</h2>
             <p className="text-xs text-green-600 dark:text-green-400">
               🔗 MCP tools managed by backend
             </p>
@@ -247,21 +247,21 @@ export default function Chat() {
             <div className="h-full flex items-center justify-center">
               <Card className="p-6 bg-neutral-100 dark:bg-neutral-900">
                 <div className="text-center space-y-4">
-                  <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
+                  <div className="bg-[#2F366D]/10 text-[#2F366D] rounded-full p-3 inline-flex">
                     <Robot size={24} />
                   </div>
-                  <h3 className="font-semibold text-lg">Welcome to AI Chat</h3>
+                  <h3 className="font-semibold text-lg text-gradient-mediset-linear">Welcome to AI Chat</h3>
                   <p className="text-muted-foreground text-sm">
                     Start a conversation with your AI assistant. Try asking
                     about:
                   </p>
                   <ul className="text-sm text-left space-y-2">
                     <li className="flex items-center gap-2">
-                      <span className="text-[#F48120]">•</span>
+                      <span className="text-[#23A1B8]">•</span>
                       <span>Weather information for any city</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <span className="text-[#F48120]">•</span>
+                      <span className="text-[#23A1B8]">•</span>
                       <span>Local time in different locations</span>
                     </li>
                   </ul>
@@ -560,7 +560,7 @@ data: ${base64Data}
             {/* Panel Header */}
             <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3">
               <div className="flex items-center justify-center h-8 w-8">
-                <Gear size={20} className="text-[#F48120]" />
+                <Gear size={20} className="text-[#23A1B8]" />
               </div>
               <div className="flex-1">
                 <h2 className="font-semibold text-base">MCP Settings</h2>

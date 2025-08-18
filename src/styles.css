@@ -25,6 +25,34 @@
 @custom-variant square (&:where(.square, .square *));
 @custom-variant circular (&:where(.circular, .circular *));
 
+/* MyMediset Rainbow Gradient Utilities */
+.bg-gradient-mediset-linear {
+  background: var(--gradient-rainbow-linear);
+}
+.bg-gradient-mediset-diagonal {
+  background: var(--gradient-rainbow-diagonal);
+}
+.bg-gradient-mediset-radial {
+  background: var(--gradient-rainbow-radial);
+}
+.bg-gradient-mediset-conic {
+  background: var(--gradient-rainbow-conic);
+}
+
+/* Text gradients */
+.text-gradient-mediset-linear {
+  background: var(--gradient-rainbow-linear);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.text-gradient-mediset-diagonal {
+  background: var(--gradient-rainbow-diagonal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 /* Tailwind config */
 @theme {
   /* Type */
@@ -47,6 +75,27 @@
   /* Base colors */
   --color-black: #000;
   --color-white: #fff;
+  
+  /* MyMediset Corporate Colors */
+  --color-mediset-navy: #2F366D;
+  --color-mediset-teal: #23A1B8;
+  --color-mediset-coral: #D94A57;
+  
+  /* 3-Tone White-Based Theme */
+  --color-primary: var(--color-mediset-navy);     /* Primary: Navy for main elements */
+  --color-secondary: var(--color-mediset-teal);   /* Secondary: Teal for accents */
+  --color-accent: var(--color-mediset-coral);     /* Accent: Coral for highlights */
+  
+  /* Rainbow Gradients using MyMediset Colors */
+  --gradient-rainbow-linear: linear-gradient(90deg, #2F366D 0%, #23A1B8 35%, #D94A57 70%);
+  --gradient-rainbow-diagonal: linear-gradient(135deg, #2F366D 0%, #23A1B8 35%, #D94A57 70%);
+  --gradient-rainbow-radial: radial-gradient(circle, #2F366D 0%, #23A1B8 35%, #D94A57 70%);
+  --gradient-rainbow-conic: conic-gradient(from 0deg, #2F366D, #23A1B8, #D94A57, #2F366D);
+  
+  /* Light theme - mainly white */
+  --color-background: #ffffff;
+  --color-surface: #f8f9fa;
+  --color-border: #e9ecef;
 
   --color-neutral-50: oklch(0.985 0 0);
   --color-neutral-100: oklch(0.97 0 0);

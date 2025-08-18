@@ -140,7 +140,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText size={20} className="text-blue-500" />
-          <h3 className="font-semibold text-lg text-neutral-900 dark:text-neutral-100">
+          <h3 className="font-semibold text-lg text-gradient-mediset-linear">
             Recommended Bookings
           </h3>
         </div>
@@ -163,7 +163,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
             onClick={generateBookingTemplates}
             disabled={isGeneratingTemplates}
             size="sm"
-            className="bg-blue-500 hover:bg-blue-600 text-white"
+            className="bg-[#2F366D] hover:bg-[#2F366D]/90 text-white"
           >
             {isGeneratingTemplates ? (
               <>
@@ -240,7 +240,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
                 <div className="flex justify-end pt-3 border-t border-neutral-200 dark:border-neutral-700">
                   <Button
                     size="sm"
-                    className="bg-green-500 hover:bg-green-600 text-white"
+                    className="bg-[#23A1B8] hover:bg-[#23A1B8]/90 text-white"
                     onClick={() => {
                       // Generate booking request body based on the most common pattern
                       const nextBusinessDay = new Date();
