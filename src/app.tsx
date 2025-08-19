@@ -197,10 +197,9 @@ export default function Chat() {
           </div>
 
           <div className="flex-1">
-            <h2 className="font-semibold text-gradient-mediset-linear">AI Chat Agent</h2>
-            <p className="text-xs text-green-600 dark:text-green-400">
-              🔗 MCP tools managed by backend
-            </p>
+            <h2 className="font-semibold text-gradient-mediset-linear">
+              AI Chat Agent
+            </h2>
           </div>
 
           <div className="flex items-center gap-2 mr-2">
@@ -250,7 +249,9 @@ export default function Chat() {
                   <div className="bg-[#2F366D]/10 text-[#2F366D] rounded-full p-3 inline-flex">
                     <Robot size={24} />
                   </div>
-                  <h3 className="font-semibold text-lg text-gradient-mediset-linear">Welcome to AI Chat</h3>
+                  <h3 className="font-semibold text-lg text-gradient-mediset-linear">
+                    Welcome to AI Chat
+                  </h3>
                   <p className="text-muted-foreground text-sm">
                     Start a conversation with your AI assistant. Try asking
                     about:

@@ -108,38 +108,6 @@ export class Chat extends AIChatAgent<Env> {
     // Collect and filter MCP tools
     const mcpTools = this.mcp.unstable_getAITools();
 
-    // Filter out problematic tools
-    // updateBooking is a problematic tool, so we skip it
-    // Need to fix this issue in the future
-    const validMcpTools: any = {};
-    for (const [toolName, toolDef] of Object.entries(mcpTools)) {
-      try {
-        // Skip the problematic updateBooking tool
-        if (
-          toolName.includes("updateBooking") ||
-          toolName.includes("UOojYM9k_updateBooking")
-        ) {
-          console.warn(`⚠️ Skipping tool with schema issues: ${toolName}`);
-          continue;
-        }
-
-        // Check for invalid array schemas (missing items)
-        const toolDefStr = JSON.stringify(toolDef);
-        if (
-          toolDefStr.includes('"type":"array"') &&
-          !toolDefStr.includes('"items"')
-        ) {
-          console.warn(
-            `⚠️ Skipping tool with invalid array schema: ${toolName}`
-          );
-          continue;
-        }
-
-        validMcpTools[toolName] = toolDef;
-      } catch (error) {
-        console.warn(`⚠️ Skipping invalid tool: ${toolName}`, error);
-      }
-    }
     // Collect all prompts from MCP servers
     const mcpPrompts = this.mcp.listPrompts();
 
@@ -166,11 +134,18 @@ export class Chat extends AIChatAgent<Env> {
         },
       },
 
-      getBookingTemplate: {
+      getRecommendedBooking: {
         description:
-          "Get a complete booking request body template for a customer based on their usual booking patterns. Use this when user asks to create a booking for a specific customer.",
+          "Get a complete booking request body template for a customer based on their usual booking patterns, or find templates by surgeon. Use this when user asks to create a booking for a specific customer or surgeon.",
         parameters: z.object({
-          customerName: z.string().describe("Customer name or ID to look up"),
+          customerName: z
+            .string()
+            .optional()
+            .describe("Customer name or ID to look up"),
+          surgeon: z
+            .string()
+            .optional()
+            .describe("Surgeon name to look up templates for"),
           surgeryDate: z
             .string()
             .optional()
@@ -189,7 +164,8 @@ export class Chat extends AIChatAgent<Env> {
             .describe("Whether to create as draft (default: true)"),
         }),
         execute: async (args: {
-          customerName: string;
+          customerName?: string;
+          surgeon?: string;
           surgeryDate?: string;
           surgeryTime?: string;
           notes?: string;
@@ -203,6 +179,7 @@ export class Chat extends AIChatAgent<Env> {
             return await (bookingAgent as any).generateBookingRequest(
               args.customerName,
               {
+                surgeon: args.surgeon,
                 surgeryDate: args.surgeryDate,
                 surgeryTime: args.surgeryTime,
                 notes: args.notes,
@@ -295,7 +272,7 @@ export class Chat extends AIChatAgent<Env> {
     };
 
     const allTools = {
-      ...validMcpTools,
+      ...mcpTools,
       ...this.usePromptTool,
       ...bookingAnalysisTools,
     };
@@ -378,31 +355,32 @@ export class Chat extends AIChatAgent<Env> {
 
           ## Booking Creation Workflow
           When user requests "create booking for [Customer] usuals" or similar:
-          1. FIRST: Use getBookingTemplate tool to fetch the customer's booking template with any customizations
-          2. Show the getBookingTemplate response.requestBody in a clear, readable format.
+          1. FIRST: Use getRecommendedBooking tool to fetch the customer's booking template with any customizations
+          2. Show the getRecommendedBooking response.requestBody in a clear, readable format.
           3. Ask if they want to modify anything (times, dates, equipment) before creating the booking
-          4. If they confirm or make modifications, use the appropriate MCP createBooking tool with the COMPLETE requestBody from getBookingTemplate response
-          5. CRITICAL: Pass the entire requestBody object from getBookingTemplate response directly to createBooking - do not reconstruct or modify the request or miss any fields
-          6. NEVER create your own request object - ALWAYS use the complete requestBody from getBookingTemplate
-          7. The requestBody from getBookingTemplate includes ALL required fields: customerId, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
-          8. Return the booking creation result to the user, do include status of isAvaliable 
+          4. If they confirm or make modifications, use the appropriate MCP createBooking tool with the COMPLETE requestBody from getRecommendedBooking response
+          5. CRITICAL: Pass the entire requestBody object from getRecommendedBooking response directly to createBooking - do not reconstruct or modify the request or miss any fields
+          6. NEVER create your own request object - ALWAYS use the complete requestBody from getRecommendedBooking
+          7. The requestBody from getRecommendedBooking includes ALL required fields: customerId, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
+          8. Proceed with simulation true and return the booking creation result to the user, do include status of isAvaliable 
+          9. Inform customer about isAvailable and would like to proceed with booking simulation false?
 
           ## Available Tools
-          - getBookingTemplate: Fetches customer's booking template with customizations (date, time, notes)
+          - getRecommendedBooking: Fetches customer's booking template with customizations (date, time, notes)
           - generateBookingTemplates: Creates templates from historical booking analysis
           - executeBookingAnalysis: Analyzes booking data from MCP servers
           - MCP tools: Various tools from connected servers (createBooking, getBooking, etc.)
 
           ## Example Interactions
           User: "create John's usual booking at 2pm tomorrow"
-          → Use getBookingTemplate with customerName="John", surgeryTime="2pm", surgeryDate="tomorrow"
+          → Use getRecommendedBooking with customerName="John", surgeryTime="2pm", surgeryDate="tomorrow"
           → Show the generated request body details
           → Ask for confirmation
-          → If confirmed, use createBooking MCP tool with the exact requestBody from getBookingTemplate response
+          → If confirmed, use createBooking MCP tool with the exact requestBody from getRecommendedBooking response
           
           CRITICAL EXAMPLE:
-          ✅ CORRECT: Use complete requestBody from getBookingTemplate
-          const templateResult = await getBookingTemplate({customerName: "John"});
+          ✅ CORRECT: Use complete requestBody from getRecommendedBooking
+          const templateResult = await getRecommendedBooking({customerName: "John"});
           await createBooking(templateResult.requestBody);  // ← Use entire requestBody object
           
           ❌ WRONG: Never reconstruct the request
@@ -835,33 +813,42 @@ export class Chat extends AIChatAgent<Env> {
       }
     }
 
-    // Handle OAuth callback
-    if (reqUrl.pathname.endsWith("oauth/callback")) {
-      try {
-        const code = reqUrl.searchParams.get("code");
+    // Handle OAuth callback (commented out for testing - frontend SDK handles OAuth)
+    // if (reqUrl.pathname.endsWith("oauth/callback")) {
+    //   console.log("🔥 OAUTH CALLBACK ROUTE HIT!");
+    //   console.log("🔗 Full URL:", reqUrl.href);
+    //   console.log("🛤️ Pathname:", reqUrl.pathname);
+    //   console.log("📋 Search params:", reqUrl.search);
+    //
+    //   try {
+    //     const code = reqUrl.searchParams.get("code");
+    //     const state = reqUrl.searchParams.get("state");
+    //
+    //     console.log("🔑 Authorization code:", code);
+    //     console.log("🏷️ State parameter:", state);
 
-        if (!code) {
-          return new Response("Missing authorization code", { status: 400 });
-        }
+    //     if (!code) {
+    //       console.log("❌ Missing authorization code");
+    //       return new Response("Missing authorization code", { status: 400 });
+    //     }
 
-        // Validate state if needed
-        // You might want to check if the state matches a previously generated state
+    //     // Let the MCP manager handle the token exchange
+    //     console.log("🔄 Calling mcp.handleCallbackRequest...");
+    //     await this.mcp.handleCallbackRequest(request);
+    //     console.log("✅ OAuth callback handled successfully");
 
-        // Let the MCP manager handle the token exchange
-        await this.mcp.handleCallbackRequest(request);
-
-        return new Response(JSON.stringify({ status: "success" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      } catch (error) {
-        console.error("OAuth callback error:", error);
-        return new Response(
-          `Token exchange failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-          { status: 400 }
-        );
-      }
-    }
+    //     return new Response(JSON.stringify({ status: "success" }), {
+    //       status: 200,
+    //       headers: { "Content-Type": "application/json" },
+    //     });
+    //   } catch (error) {
+    //     console.error("❌ OAuth callback error:", error);
+    //     return new Response(
+    //       `Token exchange failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+    //       { status: 400 }
+    //     );
+    //   }
+    // }
 
     // Handle internal booking analysis trigger (for auto-execution)
     if (

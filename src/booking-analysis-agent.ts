@@ -96,8 +96,9 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
       "Generate complete booking request body for a customer based on their usual patterns",
   })
   async generateBookingRequest(
-    customerName: string,
+    customerName?: string,
     customizations?: {
+      surgeon?: string;
       surgeryDate?: string; // ISO string or relative like "tomorrow"
       surgeryTime?: string; // e.g., "2pm", "14:00"
       deliveryTime?: string;
@@ -108,17 +109,46 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
     try {
       const templates = this.state.cachedTemplates || [];
 
-      // Find customer template (case-insensitive)
-      const template = templates.find(
-        (t) =>
-          t.customer.toLowerCase().includes(customerName.toLowerCase()) ||
-          t.customerId.toLowerCase().includes(customerName.toLowerCase())
-      );
+      let template;
+      let searchCriteria = "";
+
+      // Search by customer name if provided
+      if (customerName) {
+        template = templates.find(
+          (t) =>
+            t.customer.toLowerCase().includes(customerName.toLowerCase()) ||
+            t.customerId.toLowerCase().includes(customerName.toLowerCase())
+        );
+        searchCriteria = `customer "${customerName}"`;
+
+        // If surgeon is also provided, further filter the found template
+        if (template && customizations?.surgeon) {
+          const surgeonMatch = template.surgeon
+            .toLowerCase()
+            .includes(customizations.surgeon.toLowerCase());
+          if (!surgeonMatch) {
+            template = undefined;
+            searchCriteria = `customer "${customerName}" with surgeon "${customizations.surgeon}"`;
+          }
+        }
+      }
+      // Search by surgeon name if no customer name provided
+      else if (customizations?.surgeon) {
+        template = templates.find((t) =>
+          t.surgeon.toLowerCase().includes(customizations.surgeon!.toLowerCase())
+        );
+        searchCriteria = `surgeon "${customizations.surgeon}"`;
+      }
 
       if (!template) {
+        const availableInfo =
+          customerName || customizations?.surgeon
+            ? `Available customers: ${templates.map((t) => t.customer).join(", ")}. Available surgeons: ${[...new Set(templates.map((t) => t.surgeon))].join(", ")}`
+            : "Please provide either customerName or surgeon parameter";
+
         return {
           success: false as const,
-          error: `No template found for customer "${customerName}". Available customers: ${templates.map((t) => t.customer).join(", ")}`,
+          error: `No template found for ${searchCriteria}. ${availableInfo}`,
         };
       }
 
