@@ -242,7 +242,7 @@ export default function Chat() {
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
           {agentMessages.length === 0 && (
             <div className="h-full flex items-center justify-center">
               <Card className="p-6 bg-neutral-100 dark:bg-neutral-900">
@@ -286,7 +286,7 @@ export default function Chat() {
                   className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`flex gap-2 ${
+                    className={`flex gap-2 max-w-full ${
                       isUser ? "flex-row-reverse" : "flex-row"
                     }`}
                   >
@@ -296,8 +296,8 @@ export default function Chat() {
                       !isUser && <div className="w-8" />
                     )}
 
-                    <div>
-                      <div>
+                    <div className="min-w-0 flex-1">
+                      <div className="max-w-full">
                         {m.parts?.map((part, i) => {
                           if (part.type === "text") {
                             return (
@@ -308,16 +308,18 @@ export default function Chat() {
                                     isUser
                                       ? "rounded-br-none"
                                       : "rounded-bl-none border-assistant-border"
-                                  } relative`}
+                                  } relative max-w-xs sm:max-w-sm md:max-w-md overflow-hidden break-words`}
                                 >
-                                  <MemoizedMarkdown
-                                    id={`${m.id}-${i}`}
-                                    content={
-                                      typeof part.text === "string"
-                                        ? part.text
-                                        : ""
-                                    }
-                                  />
+                                  <div className="prose prose-sm max-w-none break-words overflow-wrap-anywhere">
+                                    <MemoizedMarkdown
+                                      id={`${m.id}-${i}`}
+                                      content={
+                                        typeof part.text === "string"
+                                          ? part.text
+                                          : ""
+                                      }
+                                    />
+                                  </div>
                                 </Card>
                                 <p
                                   className={`text-xs text-muted-foreground mt-1 ${
