@@ -385,7 +385,7 @@ export class Chat extends AIChatAgent<Env> {
           5. CRITICAL: Pass the entire requestBody object from getBookingTemplate response directly to createBooking - do not reconstruct or modify the request or miss any fields
           6. NEVER create your own request object - ALWAYS use the complete requestBody from getBookingTemplate
           7. The requestBody from getBookingTemplate includes ALL required fields: customerId, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
-          8. Return the booking creation result to the user
+          8. Return the booking creation result to the user, do include status of isAvaliable 
 
           ## Available Tools
           - getBookingTemplate: Fetches customer's booking template with customizations (date, time, notes)

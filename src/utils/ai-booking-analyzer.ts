@@ -16,6 +16,7 @@ const BookingAnalysisSchema = z.object({
       equipment: z.string(),
       surgeon: z.string(),
       salesrep: z.string(),
+      reservationType: z.string(),
       frequency: z.number(),
       totalBookings: z.number(),
       confidence: z.number().min(0).max(1), // AI confidence in this pattern
@@ -27,6 +28,7 @@ const BookingAnalysisSchema = z.object({
         surgeon: z.string(),
         salesRepId: z.string(),
         salesRepName: z.string(),
+        reservationType: z.string(),
         estimatedDate: z.string(),
         notes: z.string(),
         priority: z.enum(["high", "medium", "low"]),
@@ -62,6 +64,7 @@ For each customer, identify their MOST COMMON combination of:
 - Equipment type
 - Preferred surgeon
 - Primary sales representative
+- Reservation type
 
 Then generate a ready-to-use booking request body for each customer based on their most common pattern.
 
@@ -72,7 +75,7 @@ CRITICAL FIELD MAPPING REQUIREMENTS:
 - Use salesRepId from booking data
 
 Instructions:
-1. Find the most frequently used equipment + surgeon + sales rep combination per customer
+1. Find the most frequently used equipment + surgeon + sales rep + reservation type combination per customer
 2. Calculate frequency (how many times this exact combination appears)
 3. Provide confidence score (0.0 to 1.0) based on pattern consistency
 4. Generate practical insights about each customer's booking preferences
@@ -99,6 +102,7 @@ Return only the single most common pattern per customer, not all patterns.`,
         equipment: pattern.equipment,
         surgeon: pattern.surgeon,
         salesrep: pattern.salesrep,
+        reservationType: pattern.reservationType,
         frequency: pattern.frequency,
         totalBookings: pattern.totalBookings,
         // Enhanced AI-generated fields

@@ -258,11 +258,11 @@ export default function Chat() {
                   <ul className="text-sm text-left space-y-2">
                     <li className="flex items-center gap-2">
                       <span className="text-[#23A1B8]">•</span>
-                      <span>Weather information for any city</span>
+                      <span>Booking information for any customer</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="text-[#23A1B8]">•</span>
-                      <span>Local time in different locations</span>
+                      <span>Med</span>
                     </li>
                   </ul>
                 </div>
