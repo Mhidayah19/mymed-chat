@@ -2,29 +2,106 @@ import { useEffect, useState, useRef, useCallback, use } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "agents/ai-react";
 import type { Message } from "@ai-sdk/react";
+import { APPROVAL } from "./shared";
+import type { tools } from "./tools";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import mymLogo from "./assets/mymLogoTxt.svg";
 
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
+import { Input } from "@/components/input/Input";
 import { Avatar } from "@/components/avatar/Avatar";
 import { Toggle } from "@/components/toggle/Toggle";
-import { Textarea } from "@/components/textarea/Textarea";
-import { MemoizedMarkdown } from "@/components/memoized-markdown";
-import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-import McpSettings from "@/components/mcp/McpSettings";
+import { Tooltip } from "@/components/tooltip/Tooltip";
+import { TextShimmer } from "@/components/text/text-shimmer";
+import { 
+  ChatBookingCard, 
+  parseBookingInfo, 
+  removeBookingsFromText, 
+} from "@/components/booking/ChatBookingCard";
+import {
+  ChatMaterialCard,
+  parseMaterialInfo,
+  removeMaterialsFromText,
+} from "@/components/material/ChatMaterialCard";
 
 // Icon imports
 import {
   Bug,
   Moon,
+  PaperPlaneRight,
   Robot,
   Sun,
   Trash,
-  PaperPlaneTilt,
-  Stop,
-  Image,
-  Gear,
+  List,
+  X,
 } from "@phosphor-icons/react";
+
+// BookingCard component
+interface BookingInfo {
+  id?: string;
+  title: string;
+  date: string;
+  time?: string;
+  location?: string;
+  status?: string;
+}
+
+// List of tools that require human confirmation
+const toolsRequiringConfirmation: (keyof typeof tools)[] = [
+  "createBooking",
+  "updateBooking",
+];
+
+// Loading messages to show while the model is thinking
+const loadingMessages = [
+  "Thinking...",
+  "Processing your request...",
+  "Analyzing information...",
+  "Searching for relevant data...",
+  "Generating response...",
+  "Considering options...",
+  "Preparing answer...",
+  "Checking available tools...",
+  "Formulating response...",
+  "Almost there..."
+];
+
+// Define CSS animations
+const pulseAnimation = `
+  @keyframes pulsate {
+    0% {
+      opacity: 0.6;
+      transform: scale(0.98);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0.6;
+      transform: scale(0.98);
+    }
+  }
+
+  .loading-dots::after {
+    content: "...";
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+    animation: dots-animation 1.5s steps(4, end) infinite;
+    width: 0;
+  }
+
+  @keyframes dots-animation {
+    to {
+      width: 1.25em;
+    }
+  }
+`;
 
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -33,14 +110,9 @@ export default function Chat() {
     return (savedTheme as "dark" | "light") || "dark";
   });
   const [showDebug, setShowDebug] = useState(false);
-  const [textareaHeight, setTextareaHeight] = useState("auto");
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  // MCP tools are now handled automatically by the backend agent
-  const [showMcpPanel, setShowMcpPanel] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,6 +132,17 @@ export default function Chat() {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+  // Add animation styles to head on mount
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.innerHTML = pulseAnimation;
+    document.head.appendChild(styleElement);
+
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
+
   // Scroll to bottom on mount
   useEffect(() => {
     scrollToBottom();
@@ -68,31 +151,6 @@ export default function Chat() {
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
-  };
-
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type.startsWith("image/")) {
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64Result = e.target?.result as string;
-        setImagePreview(base64Result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeImage = () => {
-    setSelectedImage(null);
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const triggerImageUpload = () => {
-    fileInputRef.current?.click();
   };
 
   const agent = useAgent({
@@ -107,488 +165,583 @@ export default function Chat() {
     addToolResult,
     clearHistory,
     isLoading,
-    stop,
   } = useAgentChat({
     agent,
     maxSteps: 5,
   });
 
-  // Custom input handler to handle image data
-  const handleCustomInputChange = (
-    e: React.ChangeEvent<HTMLTextAreaElement>
-  ) => {
-    handleAgentInputChange(e);
-    // Auto-resize the textarea
-    e.target.style.height = "auto";
-    e.target.style.height = `${e.target.scrollHeight}px`;
-    setTextareaHeight(`${e.target.scrollHeight}px`);
-  };
-
-  // Function to get the final message with image description
-  const getFinalMessage = () => {
-    let message = agentInput;
-    if (selectedImage) {
-      const imageDescription = `[Image uploaded: ${selectedImage.name}]`;
-      message = agentInput.trim()
-        ? `${agentInput} ${imageDescription}`
-        : `I've uploaded an image (${selectedImage.name}) for you to analyze.`;
+  // Cycle through loading messages when isLoading is true
+  useEffect(() => {
+    if (isLoading) {
+      const interval = setInterval(() => {
+        setLoadingMessageIndex(prev => 
+          prev === loadingMessages.length - 1 ? 0 : prev + 1
+        );
+      }, 2000);
+      
+      return () => clearInterval(interval);
+    } else {
+      setLoadingMessageIndex(0);
     }
-    return message;
-  };
-
-  // Function to read image format and console log it
-  const logImageFormat = (file: File) => {
-    console.log("=== Image Format Information ===");
-    console.log("File name:", file.name);
-    console.log("File type:", file.type);
-    console.log("File size:", file.size, "bytes");
-    console.log("File size (KB):", (file.size / 1024).toFixed(2), "KB");
-    console.log(
-      "File size (MB):",
-      (file.size / (1024 * 1024)).toFixed(2),
-      "MB"
-    );
-    console.log("Last modified:", new Date(file.lastModified).toLocaleString());
-    console.log("================================");
-  };
+  }, [isLoading]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
   }, [agentMessages, scrollToBottom]);
 
+  // Also scroll when loading state changes
+  useEffect(() => {
+    isLoading && scrollToBottom();
+  }, [isLoading, scrollToBottom]);
+
   const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
     m.parts?.some(
       (part) =>
-        part.type === "tool-invocation" && part.toolInvocation.state === "call"
-      // No tool confirmation needed - all MCP tools are trusted
+        part.type === "tool-invocation" &&
+        part.toolInvocation.state === "call" &&
+        toolsRequiringConfirmation.includes(
+          part.toolInvocation.toolName as keyof typeof tools
+        )
     )
   );
 
-  const formatTime = (date: Date | undefined) => {
-    if (!date) return "";
+  const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const toggleDrawer = () => {
+    setDrawerOpen(!drawerOpen);
+  };
+
+  // Find active tool if any
+  const getActiveToolName = () => {
+    if (!isLoading) return null;
+    
+    // Check last few messages for any tool invocation
+    const recentMessages = [...agentMessages].reverse().slice(0, 3);
+    
+    for (const message of recentMessages) {
+      if (message.role === "assistant" && message.parts) {
+        for (const part of message.parts) {
+          if (part.type === "tool-invocation" && part.toolInvocation.state === "call") {
+            return part.toolInvocation.toolName;
+          }
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  const activeToolName = getActiveToolName();
+
   return (
-    <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden relative">
+    <div className="h-screen w-full flex flex-col bg-fixed overflow-hidden bg-white dark:bg-gray-950">
       <HasOpenAIKey />
 
-      {/* Main Chat Container - stays centered */}
-      <div className="h-[calc(100vh-2rem)] w-full max-w-lg shadow-xl rounded-md overflow-hidden border border-neutral-300 dark:border-neutral-800 flex flex-col z-10">
-        {/* Chat Header */}
-        <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
-          <div className="flex items-center justify-center h-8 w-8">
-            <svg
-              width="28px"
-              height="28px"
-              className="text-[#2F366D]"
-              data-icon="agents"
-            >
-              <title>Cloudflare Agents</title>
-              <symbol id="ai:local:agents" viewBox="0 0 80 79">
-                <path
-                  fill="currentColor"
-                  d="M69.3 39.7c-3.1 0-5.8 2.1-6.7 5H48.3V34h4.6l4.5-2.5c1.1.8 2.5 1.2 3.9 1.2 3.8 0 7-3.1 7-7s-3.1-7-7-7-7 3.1-7 7c0 .9.2 1.8.5 2.6L51.9 30h-3.5V18.8h-.1c-1.3-1-2.9-1.6-4.5-1.9h-.2c-1.9-.3-3.9-.1-5.8.6-.4.1-.8.3-1.2.5h-.1c-.1.1-.2.1-.3.2-1.7 1-3 2.4-4 4 0 .1-.1.2-.1.2l-.3.6c0 .1-.1.1-.1.2v.1h-.6c-2.9 0-5.7 1.2-7.7 3.2-2.1 2-3.2 4.8-3.2 7.7 0 .7.1 1.4.2 2.1-1.3.9-2.4 2.1-3.2 3.5s-1.2 2.9-1.4 4.5c-.1 1.6.1 3.2.7 4.7s1.5 2.9 2.6 4c-.8 1.8-1.2 3.7-1.1 5.6 0 1.9.5 3.8 1.4 5.6s2.1 3.2 3.6 4.4c1.3 1 2.7 1.7 4.3 2.2v-.1q2.25.75 4.8.6h.1c0 .1.1.1.1.1.9 1.7 2.3 3 4 4 .1.1.2.1.3.2h.1c.4.2.8.4 1.2.5 1.4.6 3 .8 4.5.7.4 0 .8-.1 1.3-.1h.1c1.6-.3 3.1-.9 4.5-1.9V62.9h3.5l3.1 1.7c-.3.8-.5 1.7-.5 2.6 0 3.8 3.1 7 7 7s7-3.1 7-7-3.1-7-7-7c-1.5 0-2.8.5-3.9 1.2l-4.6-2.5h-4.6V48.7h14.3c.9 2.9 3.5 5 6.7 5 3.8 0 7-3.1 7-7s-3.1-7-7-7m-7.9-16.9c1.6 0 3 1.3 3 3s-1.3 3-3 3-3-1.3-3-3 1.4-3 3-3m0 41.4c1.6 0 3 1.3 3 3s-1.3 3-3 3-3-1.3-3-3 1.4-3 3-3M44.3 72c-.4.2-.7.3-1.1.3-.2 0-.4.1-.5.1h-.2c-.9.1-1.7 0-2.6-.3-1-.3-1.9-.9-2.7-1.7-.7-.8-1.3-1.7-1.6-2.7l-.3-1.5v-.7q0-.75.3-1.5c.1-.2.1-.4.2-.7s.3-.6.5-.9c0-.1.1-.1.1-.2.1-.1.1-.2.2-.3s.1-.2.2-.3c0 0 0-.1.1-.1l.6-.6-2.7-3.5c-1.3 1.1-2.3 2.4-2.9 3.9-.2.4-.4.9-.5 1.3v.1c-.1.2-.1.4-.1.6-.3 1.1-.4 2.3-.3 3.4-.3 0-.7 0-1-.1-2.2-.4-4.2-1.5-5.5-3.2-1.4-1.7-2-3.9-1.8-6.1q.15-1.2.6-2.4l.3-.6c.1-.2.2-.4.3-.5 0 0 0-.1.1-.1.4-.7.9-1.3 1.5-1.9 1.6-1.5 3.8-2.3 6-2.3q1.05 0 2.1.3v-4.5c-.7-.1-1.4-.2-2.1-.2-1.8 0-3.5.4-5.2 1.1-.7.3-1.3.6-1.9 1s-1.1.8-1.7 1.3c-.3.2-.5.5-.8.8-.6-.8-1-1.6-1.3-2.6-.2-1-.2-2 0-2.9.2-1 .6-1.9 1.3-2.6.6-.8 1.4-1.4 2.3-1.8l1.8-.9-.7-1.9c-.4-1-.5-2.1-.4-3.1s.5-2.1 1.1-2.9q.9-1.35 2.4-2.1c.9-.5 2-.8 3-.7.5 0 1 .1 1.5.2 1 .2 1.8.7 2.6 1.3s1.4 1.4 1.8 2.3l4.1-1.5c-.9-2-2.3-3.7-4.2-4.9q-.6-.3-.9-.6c.4-.7 1-1.4 1.6-1.9.8-.7 1.8-1.1 2.9-1.3.9-.2 1.7-.1 2.6 0 .4.1.7.2 1.1.3V72zm25-22.3c-1.6 0-3-1.3-3-3 0-1.6 1.3-3 3-3s3 1.3 3 3c0 1.6-1.3 3-3 3"
-                />
-              </symbol>
-              <use href="#ai:local:agents" />
-            </svg>
-          </div>
+      {/* Layout Container */}
+      <div className="flex flex-1 h-full overflow-hidden">
+        {/* Overlay for mobile */}
+        {drawerOpen && (
+          <div
+            className="fixed inset-0 bg-black/20 dark:bg-black/50 z-20 lg:hidden"
+            onClick={toggleDrawer}
+          />
+        )}
 
-          <div className="flex-1">
-            <h2 className="font-semibold text-gradient-mediset-linear">
-              AI Chat Agent
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-2 mr-2">
+        {/* Drawer/Sidebar */}
+        <div
+          className={`fixed lg:fixed w-64 h-full z-30 transform transition-transform duration-300 ease-in-out ${
+            drawerOpen ? "translate-x-0" : "-translate-x-full"
+          } bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 shadow-lg`}
+        >
+          <div className="flex items-center justify-between h-16 px-4 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="flex items-center">{/* Logo removed */}</div>
             <Button
               variant="ghost"
-              size="md"
+              size="sm"
               shape="square"
-              className="rounded-full h-9 w-9"
-              onClick={() => setShowMcpPanel((prev) => !prev)}
+              className="rounded-full lg:hidden"
+              onClick={toggleDrawer}
             >
-              <Gear size={20} />
+              <X size={18} />
             </Button>
-            <Bug size={16} />
-            <Toggle
-              toggled={showDebug}
-              onClick={() => setShowDebug((prev) => !prev)}
-            />
           </div>
 
-          <Button
-            variant="ghost"
-            size="md"
-            shape="square"
-            className="rounded-full h-9 w-9"
-            onClick={toggleTheme}
-          >
-            {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-          </Button>
+          <div className="p-4">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium mb-2">Settings</h3>
+                <div className="flex items-center justify-between bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md">
+                  <div className="flex items-center gap-2">
+                    {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
+                    <span className="text-sm">Theme</span>
+                  </div>
+                  <Toggle
+                    toggled={theme === "dark"}
+                    aria-label="Toggle theme"
+                    onClick={toggleTheme}
+                  />
+                </div>
+                <div className="flex items-center justify-between bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md mt-2">
+                  <div className="flex items-center gap-2">
+                    <Bug size={16} />
+                    <span className="text-sm">Debug Mode</span>
+                  </div>
+                  <Toggle
+                    toggled={showDebug}
+                    aria-label="Toggle debug mode"
+                    onClick={() => setShowDebug((prev) => !prev)}
+                  />
+                </div>
+              </div>
 
-          <Button
-            variant="ghost"
-            size="md"
-            shape="square"
-            className="rounded-full h-9 w-9"
-            onClick={clearHistory}
-          >
-            <Trash size={20} />
-          </Button>
+              <div>
+                <h3 className="text-sm font-medium mb-2">Available Tools</h3>
+                <ul className="space-y-2">
+                  <li className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[rgb(0,104,120)]">•</span>
+                      <span>Booking Management</span>
+                      <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 flex flex-col">
+                        <span>Create</span>
+                        <span>Update</span>
+                        <span>View</span>
+                      </div>
+                    </div>
+                  </li>
+                  <li className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[rgb(0,104,120)]">•</span>
+                      <span>Materials Management</span>
+                      <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 flex flex-col">
+                        <span>Track</span>
+                        <span>View</span>
+                        <span>Update</span>
+                      </div>
+                    </div>
+                  </li>
+                  <li className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[rgb(0,104,120)]">•</span>
+                      <span>Task Scheduling</span>
+                      <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 flex flex-col">
+                        <span>Schedule</span>
+                        <span>View</span>
+                        <span>Cancel</span>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-800">
+                <Button
+                  variant="ghost"
+                  size="md"
+                  className="w-full justify-start text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                  onClick={clearHistory}
+                >
+                  <Trash size={16} className="mr-2" />
+                  Clear conversation
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
-          {agentMessages.length === 0 && (
-            <div className="h-full flex items-center justify-center">
-              <Card className="p-6 bg-neutral-100 dark:bg-neutral-900">
-                <div className="text-center space-y-4">
-                  <div className="bg-[#2F366D]/10 text-[#2F366D] rounded-full p-3 inline-flex">
-                    <Robot size={24} />
-                  </div>
-                  <h3 className="font-semibold text-lg text-gradient-mediset-linear">
-                    Welcome to AI Chat
-                  </h3>
-                  <p className="text-muted-foreground text-sm">
-                    Start a conversation with your AI assistant. Try asking
-                    about:
-                  </p>
-                  <ul className="text-sm text-left space-y-2">
-                    <li className="flex items-center gap-2">
-                      <span className="text-[#23A1B8]">•</span>
-                      <span>Booking information for any customer</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-[#23A1B8]">•</span>
-                      <span>Med</span>
-                    </li>
-                  </ul>
-                </div>
-              </Card>
+        {/* Main Content Area */}
+        <div
+          className={`flex-1 flex flex-col h-full max-h-screen overflow-hidden ${!drawerOpen ? "lg:ml-0" : "lg:ml-64"}`}
+        >
+          {/* Header */}
+          <div className="h-16 px-4 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800">
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                shape="square"
+                className="rounded-full mr-2"
+                onClick={toggleDrawer}
+              >
+                <List size={20} />
+              </Button>
+              <div className="flex items-center">
+                <img src={mymLogo} alt="MYM Logo" className="h-5" />
+                <span className="ml-2 font-semibold text-sm sm:text-base">
+                  Agent
+                </span>
+              </div>
             </div>
-          )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                shape="square"
+                className="rounded-full"
+                onClick={clearHistory}
+              >
+                <Trash size={18} />
+              </Button>
+            </div>
+          </div>
 
-          {agentMessages.map((m: Message, index) => {
-            const isUser = m.role === "user";
-            const showAvatar =
-              index === 0 || agentMessages[index - 1]?.role !== m.role;
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-1 sm:p-2 space-y-3 sm:space-y-4 pb-20 sm:pb-24">
+            {agentMessages.length === 0 && !isLoading && (
+              <div className="h-full flex items-center justify-center">
+                <Card className="p-6 sm:p-8 max-w-[90%] sm:max-w-md mx-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+                  <div className="text-center space-y-5">
+                    <div className="bg-[rgb(0,104,120)]/10 text-[rgb(0,104,120)] rounded-full p-3 inline-flex mx-auto mb-2">
+                      <Robot weight="duotone" size={24} />
+                    </div>
+                    <h3 className="font-semibold text-lg sm:text-xl text-[rgb(0,104,120)]">
+                      <TextShimmer duration={2}>
+                        Welcome to Mymediset Agent
+                      </TextShimmer>
+                    </h3>
+                    <p className="text-muted-foreground text-sm mx-auto max-w-xs">
+                      Your personal assistant at your service. Try asking about:
+                    </p>
+                    <div className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4 mx-auto max-w-xs">
+                      <ul className="text-sm text-left space-y-3">
+                        <li className="flex items-center gap-3 group">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
+                            <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
+                              →
+                            </span>
+                          </span>
+                          <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
+                            Create or update bookings
+                          </span>
+                        </li>
+                        <li className="flex items-center gap-3 group">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
+                            <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
+                              →
+                            </span>
+                          </span>
+                          <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
+                            Track and manage materials
+                          </span>
+                        </li>
+                        <li className="flex items-center gap-3 group">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
+                            <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
+                              →
+                            </span>
+                          </span>
+                          <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
+                            Schedule tasks for later
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
 
-            return (
-              <div key={m.id}>
-                {showDebug && (
-                  <pre className="text-xs text-muted-foreground overflow-scroll">
-                    {JSON.stringify(m, null, 2)}
-                  </pre>
-                )}
-                <div
-                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                >
+            {agentMessages.map((m: Message, index) => {
+              const isUser = m.role === "user";
+              // const isLastMessage = index === agentMessages.length - 1;
+              // // Check if this is a user message followed by an agent message
+              // const isFollowedByAgentMessage =
+              //   isUser &&
+              //   index < agentMessages.length - 1 &&
+              //   agentMessages[index + 1].role === "assistant";
+
+              return (
+                <div key={m.id}>
+                  {showDebug && (
+                    <pre className="text-xs text-muted-foreground overflow-scroll">
+                      {JSON.stringify(m, null, 2)}
+                    </pre>
+                  )}
                   <div
-                    className={`flex gap-2 max-w-full ${
-                      isUser ? "flex-row-reverse" : "flex-row"
-                    }`}
+                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                   >
-                    {showAvatar && !isUser ? (
-                      <Avatar username={"AI"} />
-                    ) : (
-                      !isUser && <div className="w-8" />
-                    )}
+                    <div
+                      className={`flex gap-1 sm:gap-2 max-w-[98%] sm:max-w-[98%] ${
+                        isUser ? "flex-row-reverse" : "flex-row"
+                      }`}
+                    >
+                      {/* Avatar removed */}
 
-                    <div className="min-w-0 flex-1">
-                      <div className="max-w-full">
-                        {m.parts?.map((part, i) => {
-                          if (part.type === "text") {
-                            return (
-                              // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
-                              <div key={i}>
-                                <Card
-                                  className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
-                                    isUser
-                                      ? "rounded-br-none"
-                                      : "rounded-bl-none border-assistant-border"
-                                  } relative max-w-xs sm:max-w-sm md:max-w-md overflow-hidden break-words`}
-                                >
-                                  <div className="prose prose-sm max-w-none break-words overflow-wrap-anywhere">
-                                    <MemoizedMarkdown
-                                      id={`${m.id}-${i}`}
-                                      content={
-                                        typeof part.text === "string"
-                                          ? part.text
-                                          : ""
-                                      }
-                                    />
-                                  </div>
-                                </Card>
-                                <p
-                                  className={`text-xs text-muted-foreground mt-1 ${
-                                    isUser ? "text-right" : "text-left"
-                                  }`}
-                                >
-                                  {formatTime(
-                                    new Date(m.createdAt as unknown as string)
-                                  )}
-                                </p>
-                              </div>
-                            );
-                          }
+                      <div className="w-full">
+                        <div>
+                          {m.parts?.map((part, i) => {
+                            if (part.type === "text") {
+                              // Check if the text contains booking information
+                              const bookings = parseBookingInfo(part.text);
+                              const textWithoutBookings =
+                                removeBookingsFromText(part.text);
 
-                          if (part.type === "tool-invocation") {
-                            const toolInvocation = part.toolInvocation;
-                            const toolCallId = toolInvocation.toolCallId;
-                            const needsConfirmation = false;
+                              return (
+                                // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
+                                <div key={i}>
+                                  <Card
+                                    className={`p-2 sm:p-3 rounded-md w-full ${
+                                      isUser
+                                        ? "rounded-br-none bg-neutral-100 dark:bg-neutral-900"
+                                        : "rounded-bl-none border-assistant-border bg-transparent border border-neutral-200 dark:border-neutral-800"
+                                    } ${
+                                      part.text.startsWith("scheduled message")
+                                        ? "border-accent/50"
+                                        : ""
+                                    } relative`}
+                                  >
+                                    {part.text.startsWith(
+                                      "scheduled message"
+                                    ) && (
+                                      <span className="absolute -top-3 -left-2 text-base">
+                                        🕒
+                                      </span>
+                                    )}
+                                    {part.text.startsWith(
+                                      "scheduled message"
+                                    ) ? (
+                                      <p className="text-xs sm:text-sm whitespace-pre-wrap">
+                                        {part.text.replace(
+                                          /^scheduled message: /,
+                                          ""
+                                        )}
+                                      </p>
+                                    ) : (
+                                      <div
+                                        className={`prose ${isUser ? "dark:prose-invert" : "dark:prose-invert"} prose-xs sm:prose-sm max-w-none`}
+                                      >
+                                        {/* Process material information first */}
+                                        {(() => {
+                                          // First remove bookings, then remove materials
+                                          const materials = parseMaterialInfo(part.text);
+                                          const textWithoutMaterials = removeMaterialsFromText(textWithoutBookings);
+                                          
+                                          // Return both the clean text and the materials info
+                                          return (
+                                            <>
+                                              {/* @ts-ignore - TypeScript issues with ReactMarkdown components */}
+                                              <ReactMarkdown
+                                                children={textWithoutMaterials}
+                                                components={{
+                                                  code: ({ children }) => {
+                                                    return (
+                                                      <code
+                                                        className={`${isUser ? "bg-neutral-300 dark:bg-neutral-600 text-neutral-900 dark:text-white border border-neutral-400 dark:border-neutral-500" : "bg-gray-800 text-white"} px-1 py-0.5 rounded`}
+                                                      >
+                                                        {children}
+                                                      </code>
+                                                    );
+                                                  },
+                                                  img: ({ src, alt }) => {
+                                                    return (
+                                                      <img
+                                                        src={src}
+                                                        alt={alt || ""}
+                                                        className="rounded-md max-w-[300px] w-auto h-auto my-2"
+                                                        loading="lazy"
+                                                        style={{ maxWidth: "300px" }}
+                                                      />
+                                                    );
+                                                  },
+                                                }}
+                                              />
 
-                            // Skip rendering the card in debug mode
-                            if (showDebug) return null;
+                                              {bookings.length > 0 && (
+                                                <div className="mt-3">
+                                                  {bookings.map((booking, idx) => (
+                                                    <ChatBookingCard
+                                                      key={idx}
+                                                      booking={booking}
+                                                    />
+                                                  ))}
+                                                </div>
+                                              )}
 
-                            return (
-                              <ToolInvocationCard
-                                // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
-                                key={`${toolCallId}-${i}`}
-                                toolInvocation={toolInvocation}
-                                toolCallId={toolCallId}
-                                needsConfirmation={needsConfirmation}
-                                addToolResult={addToolResult}
-                              />
-                            );
-                          }
-                          return null;
-                        })}
+                                              {materials.length > 0 && (
+                                                <div className="mt-3">
+                                                  {materials.map((material, idx) => (
+                                                    <ChatMaterialCard
+                                                      key={idx}
+                                                      material={material}
+                                                    />
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </>
+                                          );
+                                        })()}
+                                      </div>
+                                    )}
+                                  </Card>
+                                  <p
+                                    className={`text-[10px] sm:text-xs text-muted-foreground mt-1 ${
+                                      isUser ? "text-right" : "text-left"
+                                    }`}
+                                  >
+                                    {formatTime(
+                                      new Date(m.createdAt as unknown as string)
+                                    )}
+                                  </p>
+                                </div>
+                              );
+                            }
+
+                            if (part.type === "tool-invocation") {
+                              const toolInvocation = part.toolInvocation;
+                              const toolCallId = toolInvocation.toolCallId;
+
+                              if (
+                                toolsRequiringConfirmation.includes(
+                                  toolInvocation.toolName as keyof typeof tools
+                                ) &&
+                                toolInvocation.state === "call"
+                              ) {
+                                return (
+                                  <Card
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
+                                    key={i}
+                                    className="p-3 sm:p-4 my-2 sm:my-3 rounded-md bg-neutral-100 dark:bg-neutral-900"
+                                  >
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <div className="bg-[rgb(0,104,120)]/10 p-1.5 rounded-full">
+                                        <Robot
+                                          size={16}
+                                          className="text-[rgb(0,104,120)]"
+                                        />
+                                      </div>
+                                      <h4 className="font-medium text-sm sm:text-base">
+                                        <TextShimmer
+                                          className="text-[rgb(0,104,120)]"
+                                          duration={1.5}
+                                        >
+                                          {toolInvocation.toolName}
+                                        </TextShimmer>
+                                      </h4>
+                                    </div>
+
+                                    <div className="mb-3">
+                                      <h5 className="text-[10px] sm:text-xs font-medium mb-1 text-muted-foreground">
+                                        Arguments:
+                                      </h5>
+                                      <pre className="bg-background/80 p-1.5 sm:p-2 rounded-md text-[10px] sm:text-xs overflow-auto">
+                                        {JSON.stringify(
+                                          toolInvocation.args,
+                                          null,
+                                          2
+                                        )}
+                                      </pre>
+                                    </div>
+
+                                    <div className="flex gap-2 justify-end">
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        className="text-xs"
+                                        onClick={() =>
+                                          addToolResult({
+                                            toolCallId,
+                                            result: APPROVAL.NO,
+                                          })
+                                        }
+                                      >
+                                        Reject
+                                      </Button>
+                                      <Tooltip content={"Accept action"}>
+                                        <Button
+                                          variant="primary"
+                                          size="sm"
+                                          className="text-xs"
+                                          onClick={() =>
+                                            addToolResult({
+                                              toolCallId,
+                                              result: APPROVAL.YES,
+                                            })
+                                          }
+                                        >
+                                          Approve
+                                        </Button>
+                                      </Tooltip>
+                                    </div>
+                                  </Card>
+                                );
+                              }
+                              return null;
+                            }
+                            return null;
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Area */}
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-
-            // Prepare message content with image data
-            let messageContent = agentInput;
-            console.log("messageContent", messageContent);
-
-            if (selectedImage) {
-              const base64 = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const result = reader.result as string;
-                  resolve(result); // Keep the full data URL with prefix
-                };
-                reader.readAsDataURL(selectedImage);
-              });
-
-              // Update the agent input to be just the text
-              // The image will be handled separately through the multimodal message format
-              messageContent = agentInput || "Please analyze this image";
-
-              // We need to create a multimodal message, but the current setup sends as text
-              // The backend needs to be updated to handle multimodal format
-              console.log(
-                "Image base64 data URL:",
-                base64.substring(0, 100) + "..."
               );
-            }
-            console.log("messageContent", messageContent);
-
-            // Send the message with image data
-            if (messageContent.trim() || selectedImage) {
-              // Log image format if image is selected
-              if (selectedImage) {
-                logImageFormat(selectedImage);
-              }
-
-              // For now, let's create a combined message that the backend can parse
-              // This is a temporary solution until proper multimodal support is added
-              if (selectedImage) {
-                const base64Data = await new Promise<string>((resolve) => {
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    const result = reader.result as string;
-                    const base64Only = result.split(",")[1];
-                    resolve(base64Only);
-                  };
-                  reader.readAsDataURL(selectedImage);
-                });
-
-                messageContent = `${agentInput || "Please analyze this image"}
-
-[IMAGE_DATA]
-type: ${selectedImage.type}
-name: ${selectedImage.name}
-data: ${base64Data}
-[/IMAGE_DATA]`;
-              }
-
-              // Update the agent input with the prepared message content
-              handleAgentInputChange({
-                target: { value: messageContent },
-              } as React.ChangeEvent<HTMLTextAreaElement>);
-
-              // Use setTimeout to ensure state update is processed before submission
-              setTimeout(() => {
-                handleAgentSubmit(e, {
-                  data: {
-                    annotations: {
-                      imageIncluded: !!selectedImage,
-                    },
-                  },
-                });
-              }, 10);
-            }
-
-            setTextareaHeight("auto"); // Reset height after submission
-            removeImage(); // Clear image after submission
-          }}
-          className="p-3 bg-neutral-50 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
-        >
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-
-          {/* Image preview */}
-          {imagePreview && (
-            <div className="mb-2 relative">
-              <div className="relative inline-block">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="max-w-[200px] max-h-[150px] rounded-lg border border-neutral-200 dark:border-neutral-700"
-                />
-                <button
-                  type="button"
-                  onClick={removeImage}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
-                  aria-label="Remove image"
-                >
-                  ×
-                </button>
+            })}
+            {/* Loading animation showing active tool or just "Thinking..." */}
+            {isLoading && (
+              <div className="flex justify-start mt-2 mb-4">
+                <div className="w-full max-w-[98%] pl-2">
+                  <TextShimmer className="text-base font-medium" duration={1.5}>
+                    {activeToolName ? `Using ${activeToolName}...` : "Thinking..."}
+                  </TextShimmer>
+                </div>
               </div>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2">
-            <div className="flex-1 relative">
-              <Textarea
-                ref={textareaRef}
-                disabled={pendingToolCallConfirmation}
-                placeholder={
-                  pendingToolCallConfirmation
-                    ? "Please respond to the tool confirmation above..."
-                    : "Send a message..."
-                }
-                className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2  ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
-                value={agentInput}
-                onChange={handleCustomInputChange}
-                onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    !e.shiftKey &&
-                    !e.nativeEvent.isComposing
-                  ) {
-                    e.preventDefault();
-                    handleAgentSubmit(e as unknown as React.FormEvent);
-                    setTextareaHeight("auto"); // Reset height on Enter submission
-                  }
-                }}
-                rows={2}
-                style={{ height: textareaHeight }}
-              />
-              <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end gap-1">
-                {/* Image upload button */}
-                <button
-                  type="button"
-                  onClick={triggerImageUpload}
-                  disabled={pendingToolCallConfirmation}
-                  className={`inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 rounded-full p-1.5 h-fit border ${
-                    selectedImage
-                      ? "bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700"
-                      : "bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
-                  }`}
-                  aria-label="Upload image"
-                >
-                  <Image size={16} />
-                </button>
-
-                {isLoading ? (
-                  <button
-                    type="button"
-                    onClick={stop}
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    aria-label="Stop generation"
-                  >
-                    <Stop size={16} />
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    disabled={
-                      pendingToolCallConfirmation ||
-                      (!agentInput.trim() && !selectedImage)
-                    }
-                    aria-label="Send message"
-                  >
-                    <PaperPlaneTilt size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
-        </form>
-      </div>
 
-      {/* MCP Tools Panel - positioned to extend from right edge of centered chat container */}
-      {showMcpPanel && (
-        <div
-          className="fixed h-[calc(100vh-2rem)] w-80 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 border-l-0 shadow-xl rounded-r-md overflow-hidden z-20"
-          style={{
-            left: `calc(50% + ${512 / 2}px)`, // 50% (center) + half of max-w-lg (256px)
-            top: "1rem",
-          }}
-        >
-          <div className="h-full flex flex-col">
-            {/* Panel Header */}
-            <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3">
-              <div className="flex items-center justify-center h-8 w-8">
-                <Gear size={20} className="text-[#23A1B8]" />
+          {/* Input Area */}
+          <form
+            onSubmit={(e) =>
+              handleAgentSubmit(e, {
+                data: {
+                  annotations: {
+                    hello: "world",
+                  },
+                },
+              })
+            }
+            className="p-2 sm:p-3 bg-input-background border-t border-neutral-200 dark:border-neutral-800 relative"
+          >
+            <div className="flex items-center gap-2">
+              <div className="flex-1 relative">
+                <Input
+                  disabled={pendingToolCallConfirmation || isLoading}
+                  placeholder={
+                    pendingToolCallConfirmation
+                      ? "Please respond to the tool confirmation above..."
+                      : isLoading
+                        ? "Waiting for response..."
+                        : "Type your message..."
+                  }
+                  className="pl-3 sm:pl-4 pr-8 sm:pr-10 py-1.5 sm:py-2 w-full rounded-full text-sm"
+                  value={agentInput}
+                  onChange={handleAgentInputChange}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAgentSubmit(e as unknown as React.FormEvent);
+                    }
+                  }}
+                  onValueChange={undefined}
+                />
               </div>
-              <div className="flex-1">
-                <h2 className="font-semibold text-base">MCP Settings</h2>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Configure Model Context Protocol servers
-                </p>
-              </div>
+
               <Button
-                variant="ghost"
-                size="md"
+                type="submit"
                 shape="square"
-                className="rounded-full h-9 w-9"
-                onClick={() => setShowMcpPanel(false)}
+                className="rounded-full h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
+                disabled={
+                  pendingToolCallConfirmation || isLoading || !agentInput.trim()
+                }
               >
-                ×
+                <PaperPlaneRight size={16} />
               </Button>
             </div>
-
-            {/* Panel Content */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <McpSettings agent={agent} />
-            </div>
-          </div>
+          </form>
         </div>
-      )}
+      </div>
     </div>
   );
 }

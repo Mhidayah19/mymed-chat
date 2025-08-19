@@ -1,57 +1,11 @@
 @import "tailwindcss";
 
-/* Markdown Table Styling (Tailwind @apply) */
-.markdown-body table {
-  @apply w-full border-collapse my-4 text-[0.95em];
-}
-.markdown-body th,
-.markdown-body td {
-  @apply border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-left;
-}
-.markdown-body th {
-  @apply bg-neutral-100 dark:bg-neutral-800 font-semibold dark:text-neutral-200;
-}
-.markdown-body tr {
-  @apply dark:text-neutral-300;
-}
-.markdown-body tr:nth-child(even) {
-  @apply bg-neutral-50 dark:bg-neutral-850;
-}
-
 /* Custom variants */
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant interactive (&:where(.interactive, .interactive *));
 @custom-variant toggle (&:where(.toggle, .toggle *));
 @custom-variant square (&:where(.square, .square *));
 @custom-variant circular (&:where(.circular, .circular *));
-
-/* MyMediset Rainbow Gradient Utilities */
-.bg-gradient-mediset-linear {
-  background: var(--gradient-rainbow-linear);
-}
-.bg-gradient-mediset-diagonal {
-  background: var(--gradient-rainbow-diagonal);
-}
-.bg-gradient-mediset-radial {
-  background: var(--gradient-rainbow-radial);
-}
-.bg-gradient-mediset-conic {
-  background: var(--gradient-rainbow-conic);
-}
-
-/* Text gradients */
-.text-gradient-mediset-linear {
-  background: var(--gradient-rainbow-linear);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.text-gradient-mediset-diagonal {
-  background: var(--gradient-rainbow-diagonal);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
 
 /* Tailwind config */
 @theme {
@@ -76,52 +30,6 @@
   --color-black: #000;
   --color-white: #fff;
 
-  /* MyMediset Corporate Colors */
-  --color-mediset-navy: #2f366d;
-  --color-mediset-teal: #23a1b8;
-  --color-mediset-coral: #d94a57;
-
-  /* 3-Tone White-Based Theme */
-  --color-primary: var(
-    --color-mediset-navy
-  ); /* Primary: Navy for main elements */
-  --color-secondary: var(
-    --color-mediset-teal
-  ); /* Secondary: Teal for accents */
-  --color-accent: var(--color-mediset-coral); /* Accent: Coral for highlights */
-
-  /* Rainbow Gradients using MyMediset Colors */
-  --gradient-rainbow-linear: linear-gradient(
-    90deg,
-    #2f366d 0%,
-    #23a1b8 35%,
-    #d94a57 70%
-  );
-  --gradient-rainbow-diagonal: linear-gradient(
-    135deg,
-    #2f366d 0%,
-    #23a1b8 35%,
-    #d94a57 70%
-  );
-  --gradient-rainbow-radial: radial-gradient(
-    circle,
-    #2f366d 0%,
-    #23a1b8 35%,
-    #d94a57 70%
-  );
-  --gradient-rainbow-conic: conic-gradient(
-    from 0deg,
-    #2f366d,
-    #23a1b8,
-    #d94a57,
-    #2f366d
-  );
-
-  /* Light theme - mainly white */
-  --color-background: #ffffff;
-  --color-surface: #f8f9fa;
-  --color-border: #e9ecef;
-
   --color-neutral-50: oklch(0.985 0 0);
   --color-neutral-100: oklch(0.97 0 0);
   --color-neutral-150: oklch(0.96 0 0) /*new */;
@@ -145,6 +53,10 @@
 
   --color-blue-400: oklch(0.707 0.165 254.624);
   --color-blue-800: oklch(0.424 0.199 265.638);
+  
+  --color-teal-400: rgb(0, 104, 120);
+  --color-teal-500: rgb(0, 94, 108);
+  --color-teal-600: rgb(0, 84, 96);
 
   /* Component colors */
 
@@ -167,10 +79,10 @@
   --text-color-ob-inverted: var(--color-white);
 
   /* ob-btn */
-  --color-ob-btn-primary-bg: var(--color-neutral-750);
-  --color-ob-btn-primary-bg-hover: var(--color-neutral-850);
-  --color-ob-btn-primary-border: var(--color-neutral-500);
-  --color-ob-btn-primary-border-hover: var(--color-neutral-600);
+  --color-ob-btn-primary-bg: var(--color-teal-400);
+  --color-ob-btn-primary-bg-hover: var(--color-teal-500);
+  --color-ob-btn-primary-border: var(--color-teal-500);
+  --color-ob-btn-primary-border-hover: var(--color-teal-600);
 
   --color-ob-btn-secondary-bg: var(--color-white);
   --color-ob-btn-secondary-bg-hover: var(--color-neutral-50);
@@ -185,7 +97,7 @@
   --color-ob-btn-destructive-border-hover: var(--color-red-500);
 
   /* Focus colors */
-  --color-ob-focus: var(--color-blue-400);
+  --color-ob-focus: var(--color-teal-400);
 }
 
 .dark {
@@ -210,10 +122,10 @@
   --text-color-ob-inverted: var(--color-neutral-900);
 
   /* ob-btn */
-  --color-ob-btn-primary-bg: var(--color-neutral-300);
-  --color-ob-btn-primary-bg-hover: var(--color-neutral-250);
-  --color-ob-btn-primary-border: var(--color-neutral-100);
-  --color-ob-btn-primary-border-hover: var(--color-white);
+  --color-ob-btn-primary-bg: var(--color-teal-400);
+  --color-ob-btn-primary-bg-hover: var(--color-teal-500);
+  --color-ob-btn-primary-border: var(--color-teal-500);
+  --color-ob-btn-primary-border-hover: var(--color-teal-600);
 
   --color-ob-btn-secondary-bg: var(--color-neutral-900);
   --color-ob-btn-secondary-bg-hover: var(--color-neutral-850);
@@ -228,7 +140,7 @@
   --color-ob-btn-destructive-border-hover: var(--color-red-600);
 
   /* Focus colors */
-  --color-ob-focus: var(--color-blue-800);
+  --color-ob-focus: var(--color-teal-400);
 }
 
 .btn {

@@ -1,34 +1,26 @@
 {
-  "name": "mymediset-chat",
+  "name": "my-chat-agent",
   "main": "src/server.ts",
-  "compatibility_date": "2025-05-07",
+  "compatibility_date": "2025-02-04",
   "compatibility_flags": [
     "nodejs_compat",
-    "nodejs_compat_populate_process_env",
+    "nodejs_compat_populate_process_env"
   ],
   "assets": {
-    "directory": "public",
+    "directory": "public"
   },
   "durable_objects": {
     "bindings": [
       {
         "name": "Chat",
-        "class_name": "Chat",
-      },
-      {
-        "name": "BookingAnalysisAgent",
-        "class_name": "BookingAnalysisAgent",
-      },
-    ],
+        "class_name": "Chat"
+      }
+    ]
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["Chat"],
-    },
-    {
-      "tag": "v3",
-      "new_sqlite_classes": ["BookingAnalysisAgent"],
-    },
-  ],
+      "new_sqlite_classes": ["Chat"]
+    }
+  ]
 }

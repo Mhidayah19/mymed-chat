@@ -1,6 +1,7 @@
 import { Loader } from "@/components/loader/Loader";
 import { Slot } from "@/components/slot/Slot";
 import { Tooltip } from "@/components/tooltip/Tooltip";
+import { TextShimmer } from "@/components/text/text-shimmer";
 import { cn } from "@/lib/utils";
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -81,7 +82,16 @@ const ButtonComponent = ({
               !children,
           })}
         >
-          <Loader size={size === "sm" ? 12 : size === "md" ? 14 : 16} />
+          {children ? (
+            <TextShimmer
+              className="text-inherit"
+              duration={1.5}
+            >
+              {typeof children === 'string' ? children : 'Loading...'}
+            </TextShimmer>
+          ) : (
+            <Loader size={size === "sm" ? 12 : size === "md" ? 14 : 16} />
+          )}
         </span>
       ) : (
         children
