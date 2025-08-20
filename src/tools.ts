@@ -5,16 +5,16 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { agentContext } from "./server";
+import agentContext from "./server";
 import {
   unstable_getSchedulePrompt,
   unstable_scheduleSchema,
 } from "agents/schedule";
 
 // Import booking tools from the dedicated file
-import { 
-  getBookingInformation, 
-  getAllBookings, 
+import {
+  getBookingInformation,
+  getAllBookings,
   createBooking,
   bookingExecutions,
   getBookingTypes,
@@ -25,10 +25,7 @@ import {
 } from "./tools/bookingTools";
 
 // Import user info tools from the dedicated file
-import {
-  getUserLoginStatus,
-  getUserInfo,
-} from "./tools/userInfoTools";
+import { getUserLoginStatus, getUserInfo } from "./tools/userInfoTools";
 
 // Import consumption tools from the dedicated file
 import {

@@ -14,13 +14,21 @@
       {
         "name": "Chat",
         "class_name": "Chat"
+      },
+      {
+        "name": "BookingAnalysisAgent",
+        "class_name": "BookingAnalysisAgent"
       }
-    ]
+    ],
   },
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["Chat"]
-    }
-  ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["BookingAnalysisAgent"]
+    },
+  ],
 }

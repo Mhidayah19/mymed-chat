@@ -83,11 +83,8 @@ const ButtonComponent = ({
           })}
         >
           {children ? (
-            <TextShimmer
-              className="text-inherit"
-              duration={1.5}
-            >
-              {typeof children === 'string' ? children : 'Loading...'}
+            <TextShimmer className="text-inherit" duration={1.5}>
+              {typeof children === "string" ? children : "Loading..."}
             </TextShimmer>
           ) : (
             <Loader size={size === "sm" ? 12 : size === "md" ? 14 : 16} />

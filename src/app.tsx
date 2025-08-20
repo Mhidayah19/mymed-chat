@@ -17,10 +17,10 @@ import { Avatar } from "@/components/avatar/Avatar";
 import { Toggle } from "@/components/toggle/Toggle";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { TextShimmer } from "@/components/text/text-shimmer";
-import { 
-  ChatBookingCard, 
-  parseBookingInfo, 
-  removeBookingsFromText, 
+import {
+  ChatBookingCard,
+  parseBookingInfo,
+  removeBookingsFromText,
 } from "@/components/booking/ChatBookingCard";
 import {
   ChatMaterialCard,
@@ -28,9 +28,16 @@ import {
   removeMaterialsFromText,
 } from "@/components/material/ChatMaterialCard";
 
+// New enhanced components
+import { Textarea } from "@/components/textarea/Textarea";
+import { MemoizedMarkdown } from "@/components/memoized-markdown";
+import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import McpSettings from "@/components/mcp/McpSettings";
+
 // Icon imports
 import {
   Bug,
+  Gear,
   Moon,
   PaperPlaneRight,
   Robot,
@@ -67,7 +74,7 @@ const loadingMessages = [
   "Preparing answer...",
   "Checking available tools...",
   "Formulating response...",
-  "Almost there..."
+  "Almost there...",
 ];
 
 // Define CSS animations
@@ -111,6 +118,7 @@ export default function Chat() {
   });
   const [showDebug, setShowDebug] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showMcpPanel, setShowMcpPanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
 
@@ -134,7 +142,7 @@ export default function Chat() {
 
   // Add animation styles to head on mount
   useEffect(() => {
-    const styleElement = document.createElement('style');
+    const styleElement = document.createElement("style");
     styleElement.innerHTML = pulseAnimation;
     document.head.appendChild(styleElement);
 
@@ -174,11 +182,11 @@ export default function Chat() {
   useEffect(() => {
     if (isLoading) {
       const interval = setInterval(() => {
-        setLoadingMessageIndex(prev => 
+        setLoadingMessageIndex((prev) =>
           prev === loadingMessages.length - 1 ? 0 : prev + 1
         );
       }, 2000);
-      
+
       return () => clearInterval(interval);
     } else {
       setLoadingMessageIndex(0);
@@ -217,20 +225,23 @@ export default function Chat() {
   // Find active tool if any
   const getActiveToolName = () => {
     if (!isLoading) return null;
-    
+
     // Check last few messages for any tool invocation
     const recentMessages = [...agentMessages].reverse().slice(0, 3);
-    
+
     for (const message of recentMessages) {
       if (message.role === "assistant" && message.parts) {
         for (const part of message.parts) {
-          if (part.type === "tool-invocation" && part.toolInvocation.state === "call") {
+          if (
+            part.type === "tool-invocation" &&
+            part.toolInvocation.state === "call"
+          ) {
             return part.toolInvocation.toolName;
           }
         }
       }
     }
-    
+
     return null;
   };
 
@@ -333,6 +344,23 @@ export default function Chat() {
                       </div>
                     </div>
                   </li>
+                  <li className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[rgb(0,104,120)]">•</span>
+                      <span>AI Analysis & MCP Tools</span>
+                      <div className="ml-auto">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          shape="square"
+                          className="rounded-full h-6 w-6"
+                          onClick={() => setShowMcpPanel(!showMcpPanel)}
+                        >
+                          <Gear size={14} />
+                        </Button>
+                      </div>
+                    </div>
+                  </li>
                 </ul>
               </div>
 
@@ -388,7 +416,8 @@ export default function Chat() {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-1 sm:p-2 space-y-3 sm:space-y-4 pb-20 sm:pb-24">
+          <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4 sm:space-y-6 pb-20 sm:pb-24 bg-gray-50/30 dark:bg-gray-900/30">
+            <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
             {agentMessages.length === 0 && !isLoading && (
               <div className="h-full flex items-center justify-center">
                 <Card className="p-6 sm:p-8 max-w-[90%] sm:max-w-md mx-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
@@ -515,9 +544,14 @@ export default function Chat() {
                                         {/* Process material information first */}
                                         {(() => {
                                           // First remove bookings, then remove materials
-                                          const materials = parseMaterialInfo(part.text);
-                                          const textWithoutMaterials = removeMaterialsFromText(textWithoutBookings);
-                                          
+                                          const materials = parseMaterialInfo(
+                                            part.text
+                                          );
+                                          const textWithoutMaterials =
+                                            removeMaterialsFromText(
+                                              textWithoutBookings
+                                            );
+
                                           // Return both the clean text and the materials info
                                           return (
                                             <>
@@ -541,7 +575,9 @@ export default function Chat() {
                                                         alt={alt || ""}
                                                         className="rounded-md max-w-[300px] w-auto h-auto my-2"
                                                         loading="lazy"
-                                                        style={{ maxWidth: "300px" }}
+                                                        style={{
+                                                          maxWidth: "300px",
+                                                        }}
                                                       />
                                                     );
                                                   },
@@ -550,23 +586,27 @@ export default function Chat() {
 
                                               {bookings.length > 0 && (
                                                 <div className="mt-3">
-                                                  {bookings.map((booking, idx) => (
-                                                    <ChatBookingCard
-                                                      key={idx}
-                                                      booking={booking}
-                                                    />
-                                                  ))}
+                                                  {bookings.map(
+                                                    (booking, idx) => (
+                                                      <ChatBookingCard
+                                                        key={idx}
+                                                        booking={booking}
+                                                      />
+                                                    )
+                                                  )}
                                                 </div>
                                               )}
 
                                               {materials.length > 0 && (
                                                 <div className="mt-3">
-                                                  {materials.map((material, idx) => (
-                                                    <ChatMaterialCard
-                                                      key={idx}
-                                                      material={material}
-                                                    />
-                                                  ))}
+                                                  {materials.map(
+                                                    (material, idx) => (
+                                                      <ChatMaterialCard
+                                                        key={idx}
+                                                        material={material}
+                                                      />
+                                                    )
+                                                  )}
                                                 </div>
                                               )}
                                             </>
@@ -666,6 +706,18 @@ export default function Chat() {
                                     </div>
                                   </Card>
                                 );
+                              } else {
+                                // Use ToolInvocationCard for other tool invocations
+                                return (
+                                  <ToolInvocationCard
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
+                                    key={i}
+                                    toolInvocation={toolInvocation}
+                                    toolCallId={toolCallId}
+                                    needsConfirmation={false}
+                                    addToolResult={addToolResult}
+                                  />
+                                );
                               }
                               return null;
                             }
@@ -683,12 +735,15 @@ export default function Chat() {
               <div className="flex justify-start mt-2 mb-4">
                 <div className="w-full max-w-[98%] pl-2">
                   <TextShimmer className="text-base font-medium" duration={1.5}>
-                    {activeToolName ? `Using ${activeToolName}...` : "Thinking..."}
+                    {activeToolName
+                      ? `Using ${activeToolName}...`
+                      : "Thinking..."}
                   </TextShimmer>
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
+            </div>
           </div>
 
           {/* Input Area */}
@@ -704,7 +759,8 @@ export default function Chat() {
             }
             className="p-2 sm:p-3 bg-input-background border-t border-neutral-200 dark:border-neutral-800 relative"
           >
-            <div className="flex items-center gap-2">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center gap-2">
               <div className="flex-1 relative">
                 <Input
                   disabled={pendingToolCallConfirmation || isLoading}
@@ -738,10 +794,50 @@ export default function Chat() {
               >
                 <PaperPlaneRight size={16} />
               </Button>
+              </div>
             </div>
           </form>
         </div>
       </div>
+
+      {/* MCP Settings Panel - positioned as an overlay when showMcpPanel is true */}
+      {showMcpPanel && (
+        <div className="fixed inset-0 bg-black/20 dark:bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-md w-full max-w-4xl h-[80vh] overflow-hidden">
+            <div className="h-full flex flex-col">
+              {/* Panel Header */}
+              <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-3">
+                <div className="flex items-center justify-center h-8 w-8">
+                  <Gear size={20} className="text-[rgb(0,104,120)]" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="font-semibold text-base text-[rgb(0,104,120)]">
+                    AI Analysis & MCP Settings
+                  </h2>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Configure AI booking analysis and Model Context Protocol
+                    servers
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  shape="square"
+                  className="rounded-full h-8 w-8"
+                  onClick={() => setShowMcpPanel(false)}
+                >
+                  <X size={18} />
+                </Button>
+              </div>
+
+              {/* Panel Content */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <McpSettings agent={agent} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
