@@ -184,7 +184,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
             {bookingTemplates.map((template, index) => (
               <Card
                 key={`booking-${template.customer}-${index}`}
-                className="p-4 hover:shadow-md transition-shadow border-l-4 border-l-green-400"
+                className="p-4 hover:shadow-md transition-shadow border-2 border-neutral-300 dark:border-neutral-600"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -197,7 +197,7 @@ const BookingRecommendations = ({ agent }: BookingRecommendationsProps) => {
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium text-green-600 dark:text-green-400">
+                    <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
                       {Math.round(
                         ((template.frequency || 0) /
                           (template.totalBookings || 1)) *

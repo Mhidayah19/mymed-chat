@@ -11,21 +11,21 @@ import type { BookingData, BookingTemplate } from "../types";
 const BookingAnalysisSchema = z.object({
   customerPatterns: z.array(
     z.object({
-      customer: z.string(),
-      customerId: z.string(),
+      customer: z.string().describe("Customer name"),
+      customerId: z.string().describe("Customer ID"),
       equipment: z.string(), // Primary equipment name for display
       items: z.array(z.object({
-        materialId: z.string(),
-        quantity: z.number(),
-        description: z.string().optional(),
+        materialId: z.string().describe("Material ID"),
+        quantity: z.number().describe("Quantity"),
+        description: z.string().optional().describe("Description"),
       })),
-      surgeon: z.string(),
-      salesrep: z.string(),
-      reservationType: z.string(),
-      frequency: z.number(),
-      totalBookings: z.number(),
-      confidence: z.number().min(0).max(1), // AI confidence in this pattern
-      insights: z.string(), // AI insights about this customer's preferences
+      surgeon: z.string().describe("Surgeon name"),
+      salesrep: z.string().describe("Sales representative name"),
+      reservationType: z.string().describe("Reservation type"),
+      frequency: z.number().describe("Frequency"),
+      totalBookings: z.number().describe("Total bookings"),
+      confidence: z.number().min(0).max(1).describe("AI confidence in this pattern"), // AI confidence in this pattern
+      insights: z.string().describe("AI insights about this customer's preferences"), // AI insights about this customer's preferences
       suggestedBookingRequest: z.object({
         customerId: z.string(),
         customerName: z.string(),

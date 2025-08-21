@@ -208,7 +208,7 @@ export const ChatBookingCard = ({ booking }: { booking: ChatBookingInfo }) => {
 
   return (
     <div
-      className="bg-white dark:bg-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700 shadow-sm my-2 cursor-pointer hover:shadow-md transition-shadow"
+      className="bg-white dark:bg-neutral-800 rounded-md border-2 border-neutral-300 dark:border-neutral-600 shadow-sm my-2 cursor-pointer hover:shadow-md transition-shadow"
       onClick={handleCardClick}
     >
       <div className="p-3">
@@ -226,7 +226,7 @@ export const ChatBookingCard = ({ booking }: { booking: ChatBookingInfo }) => {
             <span
               className={`ml-auto text-xs px-2 py-0.5 rounded-full fade-in delay-500 ${
                 booking.status === "confirmed"
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                   : booking.status === "pending"
                     ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
                     : "bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300"

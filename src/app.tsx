@@ -1,9 +1,13 @@
 import { useEffect, useState, useRef, useCallback, use } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "agents/ai-react";
+import { agentFetch } from "agents/client";
 import type { Message } from "@ai-sdk/react";
 import { APPROVAL } from "./shared";
 import type { tools } from "./tools";
+
+// Type for booking templates response
+
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -47,15 +51,8 @@ import {
   X,
 } from "@phosphor-icons/react";
 
-// BookingCard component
-interface BookingInfo {
-  id?: string;
-  title: string;
-  date: string;
-  time?: string;
-  location?: string;
-  status?: string;
-}
+
+
 
 // List of tools that require human confirmation
 const toolsRequiringConfirmation: (keyof typeof tools)[] = [
@@ -306,6 +303,21 @@ export default function Chat() {
                     onClick={() => setShowDebug((prev) => !prev)}
                   />
                 </div>
+                <div className="flex items-center justify-between bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md mt-2">
+                  <div className="flex items-center gap-2">
+                    <Gear size={16} />
+                    <span className="text-sm">AI Analysis & MCP</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    shape="square"
+                    className="rounded-full h-6 w-6"
+                    onClick={() => setShowMcpPanel(!showMcpPanel)}
+                  >
+                    <Gear size={14} />
+                  </Button>
+                </div>
               </div>
 
               <div>
@@ -341,23 +353,6 @@ export default function Chat() {
                         <span>Schedule</span>
                         <span>View</span>
                         <span>Cancel</span>
-                      </div>
-                    </div>
-                  </li>
-                  <li className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[rgb(0,104,120)]">•</span>
-                      <span>AI Analysis & MCP Tools</span>
-                      <div className="ml-auto">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          shape="square"
-                          className="rounded-full h-6 w-6"
-                          onClick={() => setShowMcpPanel(!showMcpPanel)}
-                        >
-                          <Gear size={14} />
-                        </Button>
                       </div>
                     </div>
                   </li>
@@ -419,8 +414,8 @@ export default function Chat() {
           <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4 sm:space-y-6 pb-20 sm:pb-24 bg-gray-50/30 dark:bg-gray-900/30">
             <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
             {agentMessages.length === 0 && !isLoading && (
-              <div className="h-full flex items-center justify-center">
-                <Card className="p-6 sm:p-8 max-w-[90%] sm:max-w-md mx-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+              <div className="h-full flex items-center justify-center pt-20">
+                <Card className="p-6 sm:p-8 max-w-[90%] sm:max-w-md mx-auto bg-white dark:bg-neutral-900 border border-neutral-400 dark:border-neutral-600">
                   <div className="text-center space-y-5">
                     <div className="bg-[rgb(0,104,120)]/10 text-[rgb(0,104,120)] rounded-full p-3 inline-flex mx-auto mb-2">
                       <Robot weight="duotone" size={24} />
@@ -462,9 +457,9 @@ export default function Chat() {
                             </span>
                           </span>
                           <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
-                            Schedule tasks for later
+                            Create usual bookings
                           </span>
-                        </li>
+                          </li>
                       </ul>
                     </div>
                   </div>
@@ -511,7 +506,7 @@ export default function Chat() {
                                 // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
                                 <div key={i}>
                                   <Card
-                                    className={`p-2 sm:p-3 rounded-md w-full ${
+                                    className={`p-3 sm:p-4 rounded-lg w-full ${
                                       isUser
                                         ? "rounded-br-none bg-neutral-100 dark:bg-neutral-900"
                                         : "rounded-bl-none border-assistant-border bg-transparent border border-neutral-200 dark:border-neutral-800"
@@ -531,7 +526,7 @@ export default function Chat() {
                                     {part.text.startsWith(
                                       "scheduled message"
                                     ) ? (
-                                      <p className="text-xs sm:text-sm whitespace-pre-wrap">
+                                      <p className="text-sm sm:text-base whitespace-pre-wrap">
                                         {part.text.replace(
                                           /^scheduled message: /,
                                           ""
@@ -539,7 +534,7 @@ export default function Chat() {
                                       </p>
                                     ) : (
                                       <div
-                                        className={`prose ${isUser ? "dark:prose-invert" : "dark:prose-invert"} prose-xs sm:prose-sm max-w-none`}
+                                        className={`prose ${isUser ? "dark:prose-invert" : "dark:prose-invert"} prose-sm sm:prose-base max-w-none`}
                                       >
                                         {/* Process material information first */}
                                         {(() => {
@@ -757,7 +752,7 @@ export default function Chat() {
                 },
               })
             }
-            className="p-2 sm:p-3 bg-input-background border-t border-neutral-200 dark:border-neutral-800 relative"
+            className="p-4 sm:p-6 bg-input-background relative"
           >
             <div className="max-w-4xl mx-auto">
               <div className="flex items-center gap-2">
@@ -771,7 +766,7 @@ export default function Chat() {
                         ? "Waiting for response..."
                         : "Type your message..."
                   }
-                  className="pl-3 sm:pl-4 pr-8 sm:pr-10 py-1.5 sm:py-2 w-full rounded-full text-sm"
+                  className="pl-3 sm:pl-4 pr-8 sm:pr-10 py-3 sm:py-4 w-full rounded-3xl text-sm"
                   value={agentInput}
                   onChange={handleAgentInputChange}
                   onKeyDown={(e) => {

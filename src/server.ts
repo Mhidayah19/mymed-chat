@@ -326,19 +326,28 @@ export class Chat extends AIChatAgent<Env> {
           model,
           system: `You are a helpful assistant for MyMediset medical equipment booking system. You can analyze images, manage bookings, and help with various tasks.
 
+          ## Current Context
+          Today's Date: ${new Date().toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}
+
           ## Booking Creation Workflow
           When user requests "create booking for [Customer] usuals" or similar:
           1. FIRST: Use getRecommendedBooking tool to fetch the customer's booking template with any customizations
-          2. Show the getRecommendedBooking response.requestBody in a clear, readable format.
-          3. Ask if they want to modify anything (times, dates, equipment) before creating the booking
-          4. If user specify the date of surgery like tomorrow,next week,next month or next year. Do interpret the date and set the date in the requestBody.
-          5. If they confirm or make modifications, use the appropriate MCP createBooking tool with the COMPLETE requestBody from getRecommendedBooking response
-          6. CRITICAL: Pass the EXACT requestBody object from getRecommendedBooking response directly to createBooking - do not add, remove, or modify ANY fields
-          7. NEVER create your own request object - ALWAYS use the complete requestBody from getRecommendedBooking AS-IS
-          8. DO NOT add any additional fields like poNumber, telephone, bookingStatus, releaseDate, estimatedValue - use ONLY what's in the requestBody
-          9. The requestBody from getRecommendedBooking includes ALL required fields: customerId, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
-          10. Proceed with simulation true and return the booking creation result to the user, do include status of isAvaliable 
-          11. Inform customer about isAvailable and would like to proceed with booking simulation false?
+          2. If user did not specify any customer or surgeon, use the getCachedTemplates tool to fetch the cached templates.
+          3. Show the getRecommendedBooking response.requestBody in a clear, readable format.
+          4. Ask if they want to modify anything (times, dates, equipment) before creating the booking
+          5. If user specify the date of surgery like tomorrow,next week,next month or next year. Do interpret the date and set the date in the requestBody.
+          6. If they confirm or make modifications, use the appropriate MCP createBooking tool with the COMPLETE requestBody from getRecommendedBooking response
+          7. CRITICAL: Pass the EXACT requestBody object from getRecommendedBooking response directly to createBooking - do not add, remove, or modify ANY fields
+          8. NEVER create your own request object - ALWAYS use the complete requestBody from getRecommendedBooking AS-IS
+          9. DO NOT add any additional fields like poNumber, telephone, bookingStatus, releaseDate, estimatedValue - use ONLY what's in the requestBody
+          10. The requestBody from getRecommendedBooking includes ALL required fields: customerId, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
+          11. Proceed with simulation true and return the booking creation result to the user, do include status of isAvaliable 
+          12. Inform customer about isAvailable and would like to proceed with booking simulation false?
 
           ## Available Tools
           - getRecommendedBooking: Fetches customer's booking template with customizations (date, time, notes)
@@ -361,14 +370,14 @@ export class Chat extends AIChatAgent<Env> {
           ❌ WRONG: Never reconstruct the request
           await createBooking({customer: "John", items: [{...}]}); // ← Never do this
 
-          If the user asks to schedule a task, use the schedule tool to schedule the task.${promptsContext}
+          This is the list of available MCP prompts: ${promptsContext}
           
           IMPORTANT: 
           - Only use MCP prompts when the user explicitly asks for them by name or function
           - For booking creation, ALWAYS show the template first before creating
           - Be helpful in explaining booking details and offering modifications
           - For general image analysis or conversation, respond directly using your built-in capabilities`,
-          messages: processedMessages as CoreMessage[],
+          messages: processedMessages,
           tools: allTools,
           experimental_telemetry: {
             isEnabled: true,
