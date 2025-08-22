@@ -27,6 +27,11 @@ import {
   removeBookingsFromText,
 } from "@/components/booking/ChatBookingCard";
 import {
+  BookingResultCard,
+  parseBookingResultInfo,
+  removeBookingResultsFromText,
+} from "@/components/booking/BookingResultCard";
+import {
   ChatMaterialCard,
   parseMaterialInfo,
   removeMaterialsFromText,
@@ -50,9 +55,6 @@ import {
   List,
   X,
 } from "@phosphor-icons/react";
-
-
-
 
 // List of tools that require human confirmation
 const toolsRequiringConfirmation: (keyof typeof tools)[] = [
@@ -413,277 +415,305 @@ export default function Chat() {
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4 sm:space-y-6 pb-20 sm:pb-24 bg-gray-50/30 dark:bg-gray-900/30">
             <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-            {agentMessages.length === 0 && !isLoading && (
-              <div className="h-full flex items-center justify-center pt-20">
-                <Card className="p-6 sm:p-8 max-w-[90%] sm:max-w-md mx-auto bg-white dark:bg-neutral-900 border border-neutral-400 dark:border-neutral-600">
-                  <div className="text-center space-y-5">
-                    <div className="bg-[rgb(0,104,120)]/10 text-[rgb(0,104,120)] rounded-full p-3 inline-flex mx-auto mb-2">
-                      <Robot weight="duotone" size={24} />
-                    </div>
-                    <h3 className="font-semibold text-lg sm:text-xl text-[rgb(0,104,120)]">
-                      <TextShimmer duration={2}>
-                        Welcome to Mymediset Agent
-                      </TextShimmer>
-                    </h3>
-                    <p className="text-muted-foreground text-sm mx-auto max-w-xs">
-                      Your personal assistant at your service. Try asking about:
-                    </p>
-                    <div className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4 mx-auto max-w-xs">
-                      <ul className="text-sm text-left space-y-3">
-                        <li className="flex items-center gap-3 group">
-                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
-                            <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
-                              →
+              {agentMessages.length === 0 && !isLoading && (
+                <div className="h-full flex items-center justify-center pt-20">
+                  <Card className="p-6 sm:p-8 max-w-[90%] sm:max-w-md mx-auto bg-white dark:bg-neutral-900 border border-neutral-400 dark:border-neutral-600">
+                    <div className="text-center space-y-5">
+                      <div className="bg-[rgb(0,104,120)]/10 text-[rgb(0,104,120)] rounded-full p-3 inline-flex mx-auto mb-2">
+                        <Robot weight="duotone" size={24} />
+                      </div>
+                      <h3 className="font-semibold text-lg sm:text-xl text-[rgb(0,104,120)]">
+                        <TextShimmer duration={2}>
+                          Welcome to Mymediset Agent
+                        </TextShimmer>
+                      </h3>
+                      <p className="text-muted-foreground text-sm mx-auto max-w-xs">
+                        Your personal assistant at your service. Try asking
+                        about:
+                      </p>
+                      <div className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4 mx-auto max-w-xs">
+                        <ul className="text-sm text-left space-y-3">
+                          <li className="flex items-center gap-3 group">
+                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
+                              <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
+                                →
+                              </span>
                             </span>
-                          </span>
-                          <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
-                            Create or update bookings
-                          </span>
-                        </li>
-                        <li className="flex items-center gap-3 group">
-                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
-                            <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
-                              →
+                            <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
+                              Create or update bookings
                             </span>
-                          </span>
-                          <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
-                            Track and manage materials
-                          </span>
-                        </li>
-                        <li className="flex items-center gap-3 group">
-                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
-                            <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
-                              →
-                            </span>
-                          </span>
-                          <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
-                            Create usual bookings
-                          </span>
                           </li>
-                      </ul>
+                          <li className="flex items-center gap-3 group">
+                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
+                              <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
+                                →
+                              </span>
+                            </span>
+                            <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
+                              Track and manage materials
+                            </span>
+                          </li>
+                          <li className="flex items-center gap-3 group">
+                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
+                              <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
+                                →
+                              </span>
+                            </span>
+                            <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
+                              Create usual bookings
+                            </span>
+                          </li>
+                        </ul>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              </div>
-            )}
+                  </Card>
+                </div>
+              )}
 
-            {agentMessages.map((m: Message, index) => {
-              const isUser = m.role === "user";
-              // const isLastMessage = index === agentMessages.length - 1;
-              // // Check if this is a user message followed by an agent message
-              // const isFollowedByAgentMessage =
-              //   isUser &&
-              //   index < agentMessages.length - 1 &&
-              //   agentMessages[index + 1].role === "assistant";
+              {agentMessages.map((m: Message, index) => {
+                const isUser = m.role === "user";
+                // const isLastMessage = index === agentMessages.length - 1;
+                // // Check if this is a user message followed by an agent message
+                // const isFollowedByAgentMessage =
+                //   isUser &&
+                //   index < agentMessages.length - 1 &&
+                //   agentMessages[index + 1].role === "assistant";
 
-              return (
-                <div key={m.id}>
-                  {showDebug && (
-                    <pre className="text-xs text-muted-foreground overflow-scroll">
-                      {JSON.stringify(m, null, 2)}
-                    </pre>
-                  )}
-                  <div
-                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                  >
+                return (
+                  <div key={m.id}>
+                    {showDebug && (
+                      <pre className="text-xs text-muted-foreground overflow-scroll">
+                        {JSON.stringify(m, null, 2)}
+                      </pre>
+                    )}
                     <div
-                      className={`flex gap-1 sm:gap-2 max-w-[98%] sm:max-w-[98%] ${
-                        isUser ? "flex-row-reverse" : "flex-row"
-                      }`}
+                      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                     >
-                      {/* Avatar removed */}
+                      <div
+                        className={`flex gap-1 sm:gap-2 max-w-[98%] sm:max-w-[98%] ${
+                          isUser ? "flex-row-reverse" : "flex-row"
+                        }`}
+                      >
+                        {/* Avatar removed */}
 
-                      <div className="w-full">
-                        <div>
-                          {m.parts?.map((part, i) => {
-                            if (part.type === "text") {
-                              // Check if the text contains booking information
-                              const bookings = parseBookingInfo(part.text);
-                              const textWithoutBookings =
-                                removeBookingsFromText(part.text);
+                        <div className="w-full">
+                          <div>
+                            {m.parts?.map((part, i) => {
+                              if (part.type === "text") {
+                                // Check if the text contains booking information
+                                const bookings = parseBookingInfo(part.text);
+                                const textWithoutBookings =
+                                  removeBookingsFromText(part.text);
 
-                              return (
-                                // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
-                                <div key={i}>
-                                  <Card
-                                    className={`p-3 sm:p-4 rounded-lg w-full ${
-                                      isUser
-                                        ? "rounded-br-none bg-neutral-100 dark:bg-neutral-900"
-                                        : "rounded-bl-none border-assistant-border bg-transparent border border-neutral-200 dark:border-neutral-800"
-                                    } ${
-                                      part.text.startsWith("scheduled message")
-                                        ? "border-accent/50"
-                                        : ""
-                                    } relative`}
-                                  >
-                                    {part.text.startsWith(
-                                      "scheduled message"
-                                    ) && (
-                                      <span className="absolute -top-3 -left-2 text-base">
-                                        🕒
-                                      </span>
-                                    )}
-                                    {part.text.startsWith(
-                                      "scheduled message"
-                                    ) ? (
-                                      <p className="text-sm sm:text-base whitespace-pre-wrap">
-                                        {part.text.replace(
-                                          /^scheduled message: /,
-                                          ""
-                                        )}
-                                      </p>
-                                    ) : (
-                                      <div
-                                        className={`prose ${isUser ? "dark:prose-invert" : "dark:prose-invert"} prose-sm sm:prose-base max-w-none`}
-                                      >
-                                        {/* Process material information first */}
-                                        {(() => {
-                                          // First remove bookings, then remove materials
-                                          const materials = parseMaterialInfo(
-                                            part.text
-                                          );
-                                          const textWithoutMaterials =
-                                            removeMaterialsFromText(
-                                              textWithoutBookings
-                                            );
-
-                                          // Return both the clean text and the materials info
-                                          return (
-                                            <>
-                                              {/* @ts-ignore - TypeScript issues with ReactMarkdown components */}
-                                              <ReactMarkdown
-                                                children={textWithoutMaterials}
-                                                components={{
-                                                  code: ({ children }) => {
-                                                    return (
-                                                      <code
-                                                        className={`${isUser ? "bg-neutral-300 dark:bg-neutral-600 text-neutral-900 dark:text-white border border-neutral-400 dark:border-neutral-500" : "bg-gray-800 text-white"} px-1 py-0.5 rounded`}
-                                                      >
-                                                        {children}
-                                                      </code>
-                                                    );
-                                                  },
-                                                  img: ({ src, alt }) => {
-                                                    return (
-                                                      <img
-                                                        src={src}
-                                                        alt={alt || ""}
-                                                        className="rounded-md max-w-[300px] w-auto h-auto my-2"
-                                                        loading="lazy"
-                                                        style={{
-                                                          maxWidth: "300px",
-                                                        }}
-                                                      />
-                                                    );
-                                                  },
-                                                }}
-                                              />
-
-                                              {bookings.length > 0 && (
-                                                <div className="mt-3">
-                                                  {bookings.map(
-                                                    (booking, idx) => (
-                                                      <ChatBookingCard
-                                                        key={idx}
-                                                        booking={booking}
-                                                      />
-                                                    )
-                                                  )}
-                                                </div>
-                                              )}
-
-                                              {materials.length > 0 && (
-                                                <div className="mt-3">
-                                                  {materials.map(
-                                                    (material, idx) => (
-                                                      <ChatMaterialCard
-                                                        key={idx}
-                                                        material={material}
-                                                      />
-                                                    )
-                                                  )}
-                                                </div>
-                                              )}
-                                            </>
-                                          );
-                                        })()}
-                                      </div>
-                                    )}
-                                  </Card>
-                                  <p
-                                    className={`text-[10px] sm:text-xs text-muted-foreground mt-1 ${
-                                      isUser ? "text-right" : "text-left"
-                                    }`}
-                                  >
-                                    {formatTime(
-                                      new Date(m.createdAt as unknown as string)
-                                    )}
-                                  </p>
-                                </div>
-                              );
-                            }
-
-                            if (part.type === "tool-invocation") {
-                              const toolInvocation = part.toolInvocation;
-                              const toolCallId = toolInvocation.toolCallId;
-
-                              if (
-                                toolsRequiringConfirmation.includes(
-                                  toolInvocation.toolName as keyof typeof tools
-                                ) &&
-                                toolInvocation.state === "call"
-                              ) {
                                 return (
-                                  <Card
-                                    // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
-                                    key={i}
-                                    className="p-3 sm:p-4 my-2 sm:my-3 rounded-md bg-neutral-100 dark:bg-neutral-900"
-                                  >
-                                    <div className="flex items-center gap-2 mb-3">
-                                      <div className="bg-[rgb(0,104,120)]/10 p-1.5 rounded-full">
-                                        <Robot
-                                          size={16}
-                                          className="text-[rgb(0,104,120)]"
-                                        />
-                                      </div>
-                                      <h4 className="font-medium text-sm sm:text-base">
-                                        <TextShimmer
-                                          className="text-[rgb(0,104,120)]"
-                                          duration={1.5}
+                                  // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
+                                  <div key={i}>
+                                    <Card
+                                      className={`p-3 sm:p-4 rounded-lg w-full ${
+                                        isUser
+                                          ? "rounded-br-none bg-neutral-100 dark:bg-neutral-900"
+                                          : "rounded-bl-none border-assistant-border bg-transparent border border-neutral-200 dark:border-neutral-800"
+                                      } ${
+                                        part.text.startsWith(
+                                          "scheduled message"
+                                        )
+                                          ? "border-accent/50"
+                                          : ""
+                                      } relative`}
+                                    >
+                                      {part.text.startsWith(
+                                        "scheduled message"
+                                      ) && (
+                                        <span className="absolute -top-3 -left-2 text-base">
+                                          🕒
+                                        </span>
+                                      )}
+                                      {part.text.startsWith(
+                                        "scheduled message"
+                                      ) ? (
+                                        <p className="text-sm sm:text-base whitespace-pre-wrap">
+                                          {part.text.replace(
+                                            /^scheduled message: /,
+                                            ""
+                                          )}
+                                        </p>
+                                      ) : (
+                                        <div
+                                          className={`prose ${isUser ? "dark:prose-invert" : "dark:prose-invert"} prose-sm sm:prose-base max-w-none`}
                                         >
-                                          {toolInvocation.toolName}
-                                        </TextShimmer>
-                                      </h4>
-                                    </div>
+                                          {/* Process all card types */}
+                                          {(() => {
+                                            console.log("🚀 Processing message part:", { text: part.text, type: part.type });
+                                            
+                                            // Parse booking results first
+                                            const bookingResults =
+                                              parseBookingResultInfo(part.text);
+                                            console.log("📊 App.tsx - booking results parsed:", bookingResults.length);
+                                            
+                                            const textWithoutBookingResults =
+                                              removeBookingResultsFromText(
+                                                part.text
+                                              );
 
-                                    <div className="mb-3">
-                                      <h5 className="text-[10px] sm:text-xs font-medium mb-1 text-muted-foreground">
-                                        Arguments:
-                                      </h5>
-                                      <pre className="bg-background/80 p-1.5 sm:p-2 rounded-md text-[10px] sm:text-xs overflow-auto">
-                                        {JSON.stringify(
-                                          toolInvocation.args,
-                                          null,
-                                          2
-                                        )}
-                                      </pre>
-                                    </div>
+                                            // Then parse regular bookings from remaining text
+                                            const bookings = parseBookingInfo(
+                                              textWithoutBookingResults
+                                            );
+                                            const textWithoutBookings =
+                                              removeBookingsFromText(
+                                                textWithoutBookingResults
+                                              );
 
-                                    <div className="flex gap-2 justify-end">
-                                      <Button
-                                        variant="primary"
-                                        size="sm"
-                                        className="text-xs"
-                                        onClick={() =>
-                                          addToolResult({
-                                            toolCallId,
-                                            result: APPROVAL.NO,
-                                          })
-                                        }
-                                      >
-                                        Reject
-                                      </Button>
-                                      <Tooltip content={"Accept action"}>
+                                            // Finally parse materials from remaining text
+                                            const materials =
+                                              parseMaterialInfo(
+                                                textWithoutBookings
+                                              );
+                                            const textWithoutMaterials =
+                                              removeMaterialsFromText(
+                                                textWithoutBookings
+                                              );
+
+                                            // Return clean text and all card types
+                                            return (
+                                              <>
+                                                {/* @ts-ignore - TypeScript issues with ReactMarkdown components */}
+                                                <ReactMarkdown
+                                                  children={
+                                                    textWithoutMaterials
+                                                  }
+                                                  components={{
+                                                    code: ({ children }) => {
+                                                      return (
+                                                        <code
+                                                          className={`${isUser ? "bg-neutral-300 dark:bg-neutral-600 text-neutral-900 dark:text-white border border-neutral-400 dark:border-neutral-500" : "bg-gray-800 text-white"} px-1 py-0.5 rounded`}
+                                                        >
+                                                          {children}
+                                                        </code>
+                                                      );
+                                                    },
+                                                    img: ({ src, alt }) => {
+                                                      return (
+                                                        <img
+                                                          src={src}
+                                                          alt={alt || ""}
+                                                          className="rounded-md max-w-[300px] w-auto h-auto my-2"
+                                                          loading="lazy"
+                                                          style={{
+                                                            maxWidth: "300px",
+                                                          }}
+                                                        />
+                                                      );
+                                                    },
+                                                  }}
+                                                />
+
+                                                {bookingResults.length > 0 && (
+                                                  <div className="mt-3">
+                                                    {bookingResults.map(
+                                                      (result, idx) => (
+                                                        <BookingResultCard
+                                                          key={idx}
+                                                          result={result}
+                                                        />
+                                                      )
+                                                    )}
+                                                  </div>
+                                                )}
+
+                                                {bookings.length > 0 && (
+                                                  <div className="mt-3">
+                                                    {bookings.map(
+                                                      (booking, idx) => (
+                                                        <ChatBookingCard
+                                                          key={idx}
+                                                          booking={booking}
+                                                        />
+                                                      )
+                                                    )}
+                                                  </div>
+                                                )}
+
+                                                {materials.length > 0 && (
+                                                  <div className="mt-3">
+                                                    {materials.map(
+                                                      (material, idx) => (
+                                                        <ChatMaterialCard
+                                                          key={idx}
+                                                          material={material}
+                                                        />
+                                                      )
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                      )}
+                                    </Card>
+                                    <p
+                                      className={`text-[10px] sm:text-xs text-muted-foreground mt-1 ${
+                                        isUser ? "text-right" : "text-left"
+                                      }`}
+                                    >
+                                      {formatTime(
+                                        new Date(
+                                          m.createdAt as unknown as string
+                                        )
+                                      )}
+                                    </p>
+                                  </div>
+                                );
+                              }
+
+                              if (part.type === "tool-invocation") {
+                                const toolInvocation = part.toolInvocation;
+                                const toolCallId = toolInvocation.toolCallId;
+
+                                if (
+                                  toolsRequiringConfirmation.includes(
+                                    toolInvocation.toolName as keyof typeof tools
+                                  ) &&
+                                  toolInvocation.state === "call"
+                                ) {
+                                  return (
+                                    <Card
+                                      // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
+                                      key={i}
+                                      className="p-3 sm:p-4 my-2 sm:my-3 rounded-md bg-neutral-100 dark:bg-neutral-900"
+                                    >
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <div className="bg-[rgb(0,104,120)]/10 p-1.5 rounded-full">
+                                          <Robot
+                                            size={16}
+                                            className="text-[rgb(0,104,120)]"
+                                          />
+                                        </div>
+                                        <h4 className="font-medium text-sm sm:text-base">
+                                          <TextShimmer
+                                            className="text-[rgb(0,104,120)]"
+                                            duration={1.5}
+                                          >
+                                            {toolInvocation.toolName}
+                                          </TextShimmer>
+                                        </h4>
+                                      </div>
+
+                                      <div className="mb-3">
+                                        <h5 className="text-[10px] sm:text-xs font-medium mb-1 text-muted-foreground">
+                                          Arguments:
+                                        </h5>
+                                        <pre className="bg-background/80 p-1.5 sm:p-2 rounded-md text-[10px] sm:text-xs overflow-auto">
+                                          {JSON.stringify(
+                                            toolInvocation.args,
+                                            null,
+                                            2
+                                          )}
+                                        </pre>
+                                      </div>
+
+                                      <div className="flex gap-2 justify-end">
                                         <Button
                                           variant="primary"
                                           size="sm"
@@ -691,53 +721,70 @@ export default function Chat() {
                                           onClick={() =>
                                             addToolResult({
                                               toolCallId,
-                                              result: APPROVAL.YES,
+                                              result: APPROVAL.NO,
                                             })
                                           }
                                         >
-                                          Approve
+                                          Reject
                                         </Button>
-                                      </Tooltip>
-                                    </div>
-                                  </Card>
-                                );
-                              } else {
-                                // Use ToolInvocationCard for other tool invocations
-                                return (
-                                  <ToolInvocationCard
-                                    // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
-                                    key={i}
-                                    toolInvocation={toolInvocation}
-                                    toolCallId={toolCallId}
-                                    needsConfirmation={false}
-                                    addToolResult={addToolResult}
-                                  />
-                                );
+                                        <Tooltip content={"Accept action"}>
+                                          <Button
+                                            variant="primary"
+                                            size="sm"
+                                            className="text-xs"
+                                            onClick={() =>
+                                              addToolResult({
+                                                toolCallId,
+                                                result: APPROVAL.YES,
+                                              })
+                                            }
+                                          >
+                                            Approve
+                                          </Button>
+                                        </Tooltip>
+                                      </div>
+                                    </Card>
+                                  );
+                                } else {
+                                  // Use ToolInvocationCard for other tool invocations
+                                  return (
+                                    <ToolInvocationCard
+                                      // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
+                                      key={i}
+                                      toolInvocation={toolInvocation}
+                                      toolCallId={toolCallId}
+                                      needsConfirmation={false}
+                                      addToolResult={addToolResult}
+                                    />
+                                  );
+                                }
+                                return null;
                               }
                               return null;
-                            }
-                            return null;
-                          })}
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
+                );
+              })}
+              {/* Loading animation showing active tool or just "Thinking..." */}
+              {isLoading && (
+                <div className="flex justify-start mt-2 mb-4">
+                  <div className="w-full max-w-[98%] pl-2">
+                    <TextShimmer
+                      className="text-base font-medium"
+                      duration={1.5}
+                    >
+                      {activeToolName
+                        ? `Using ${activeToolName}...`
+                        : "Thinking..."}
+                    </TextShimmer>
+                  </div>
                 </div>
-              );
-            })}
-            {/* Loading animation showing active tool or just "Thinking..." */}
-            {isLoading && (
-              <div className="flex justify-start mt-2 mb-4">
-                <div className="w-full max-w-[98%] pl-2">
-                  <TextShimmer className="text-base font-medium" duration={1.5}>
-                    {activeToolName
-                      ? `Using ${activeToolName}...`
-                      : "Thinking..."}
-                  </TextShimmer>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
+              )}
+              <div ref={messagesEndRef} />
             </div>
           </div>
 
@@ -756,39 +803,41 @@ export default function Chat() {
           >
             <div className="max-w-4xl mx-auto">
               <div className="flex items-center gap-2">
-              <div className="flex-1 relative">
-                <Input
-                  disabled={pendingToolCallConfirmation || isLoading}
-                  placeholder={
-                    pendingToolCallConfirmation
-                      ? "Please respond to the tool confirmation above..."
-                      : isLoading
-                        ? "Waiting for response..."
-                        : "Type your message..."
-                  }
-                  className="pl-3 sm:pl-4 pr-8 sm:pr-10 py-3 sm:py-4 w-full rounded-3xl text-sm"
-                  value={agentInput}
-                  onChange={handleAgentInputChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleAgentSubmit(e as unknown as React.FormEvent);
+                <div className="flex-1 relative">
+                  <Input
+                    disabled={pendingToolCallConfirmation || isLoading}
+                    placeholder={
+                      pendingToolCallConfirmation
+                        ? "Please respond to the tool confirmation above..."
+                        : isLoading
+                          ? "Waiting for response..."
+                          : "Type your message..."
                     }
-                  }}
-                  onValueChange={undefined}
-                />
-              </div>
+                    className="pl-3 sm:pl-4 pr-8 sm:pr-10 py-3 sm:py-4 w-full rounded-3xl text-sm"
+                    value={agentInput}
+                    onChange={handleAgentInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAgentSubmit(e as unknown as React.FormEvent);
+                      }
+                    }}
+                    onValueChange={undefined}
+                  />
+                </div>
 
-              <Button
-                type="submit"
-                shape="square"
-                className="rounded-full h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
-                disabled={
-                  pendingToolCallConfirmation || isLoading || !agentInput.trim()
-                }
-              >
-                <PaperPlaneRight size={16} />
-              </Button>
+                <Button
+                  type="submit"
+                  shape="square"
+                  className="rounded-full h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
+                  disabled={
+                    pendingToolCallConfirmation ||
+                    isLoading ||
+                    !agentInput.trim()
+                  }
+                >
+                  <PaperPlaneRight size={16} />
+                </Button>
               </div>
             </div>
           </form>

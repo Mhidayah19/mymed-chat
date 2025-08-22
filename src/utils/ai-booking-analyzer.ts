@@ -14,18 +14,26 @@ const BookingAnalysisSchema = z.object({
       customer: z.string().describe("Customer name"),
       customerId: z.string().describe("Customer ID"),
       equipment: z.string(), // Primary equipment name for display
-      items: z.array(z.object({
-        materialId: z.string().describe("Material ID"),
-        quantity: z.number().describe("Quantity"),
-        description: z.string().optional().describe("Description"),
-      })),
+      items: z.array(
+        z.object({
+          materialId: z.string().describe("Material ID"),
+          quantity: z.number().describe("Quantity"),
+          description: z.string().optional().describe("Description"),
+        })
+      ),
       surgeon: z.string().describe("Surgeon name"),
       salesrep: z.string().describe("Sales representative name"),
       reservationType: z.string().describe("Reservation type"),
       frequency: z.number().describe("Frequency"),
       totalBookings: z.number().describe("Total bookings"),
-      confidence: z.number().min(0).max(1).describe("AI confidence in this pattern"), // AI confidence in this pattern
-      insights: z.string().describe("AI insights about this customer's preferences"), // AI insights about this customer's preferences
+      confidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .describe("AI confidence in this pattern"), // AI confidence in this pattern
+      insights: z
+        .string()
+        .describe("AI insights about this customer's preferences"), // AI insights about this customer's preferences
       suggestedBookingRequest: z.object({
         customerId: z.string(),
         customerName: z.string(),

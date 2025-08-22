@@ -283,7 +283,8 @@ export class Chat extends AIChatAgent<Env> {
         },
       },
       getCachedTemplates: {
-        description: "Get the cached booking templates that were previously generated",
+        description:
+          "Get the cached booking templates that were previously generated",
         parameters: z.object({}),
         execute: async () => {
           try {
@@ -327,11 +328,11 @@ export class Chat extends AIChatAgent<Env> {
           system: `You are a helpful assistant for MyMediset medical equipment booking system. You can analyze images, manage bookings, and help with various tasks.
 
           ## Current Context
-          Today's Date: ${new Date().toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+          Today's Date: ${new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
           })}
 
           ## Booking Creation Workflow
@@ -348,6 +349,30 @@ export class Chat extends AIChatAgent<Env> {
           10. The requestBody from getRecommendedBooking includes ALL required fields: customerId, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
           11. Proceed with simulation true and return the booking creation result to the user, do include status of isAvaliable 
           12. Inform customer about isAvailable and would like to proceed with booking simulation false?
+          13. IMPORTANT: After any booking operation (create/update), display results in a structured booking-result block format
+
+          ## Structured Response Format
+          For booking operation results, always use this comprehensive markdown format:
+          \`\`\`booking-result
+          status: success|error|warning
+          bookingId: [generated booking ID]
+          customer: [customer name]
+          customerId: [customer ID number]
+          message: [success/error message]
+          equipment: [equipment description]
+          surgeon: [surgeon name]
+          salesRep: [sales representative name]
+          surgeryDate: [surgery date]
+          surgeryType: [OR/etc]
+          currency: [EUR/USD/etc]
+          reservationType: [01/02/etc]
+          simulation: [True/False]
+          availability: [availability status]
+          items:
+          [Item Name] (Quantity: [number])
+          [Item Name] (Quantity: [number])
+          notes: [additional notes]
+          \`\`\`
 
           ## Available Tools
           - getRecommendedBooking: Fetches customer's booking template with customizations (date, time, notes)
@@ -376,7 +401,8 @@ export class Chat extends AIChatAgent<Env> {
           - Only use MCP prompts when the user explicitly asks for them by name or function
           - For booking creation, ALWAYS show the template first before creating
           - Be helpful in explaining booking details and offering modifications
-          - For general image analysis or conversation, respond directly using your built-in capabilities`,
+          - For general image analysis or conversation, respond directly using your built-in capabilities
+          - After booking operations, ALWAYS use the booking-result markdown format shown above`,
           messages: processedMessages,
           tools: allTools,
           experimental_telemetry: {

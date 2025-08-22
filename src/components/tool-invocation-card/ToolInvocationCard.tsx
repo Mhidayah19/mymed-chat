@@ -40,8 +40,8 @@ export function ToolInvocationCard({
   return (
     <Card
       className={`p-4 my-3 w-full rounded-md ${
-        needsConfirmation 
-          ? "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800" 
+        needsConfirmation
+          ? "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
           : "bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800"
       } overflow-hidden shadow-sm`}
     >
@@ -52,21 +52,26 @@ export function ToolInvocationCard({
       >
         <div
           className={`${
-            needsConfirmation 
-              ? "bg-yellow-500/10 dark:bg-yellow-400/10" 
+            needsConfirmation
+              ? "bg-yellow-500/10 dark:bg-yellow-400/10"
               : "bg-blue-500/10 dark:bg-blue-400/10"
           } p-1.5 rounded-full flex-shrink-0`}
         >
-          <Robot size={16} className={`${
-            needsConfirmation 
-              ? "text-yellow-600 dark:text-yellow-400" 
-              : "text-blue-600 dark:text-blue-400"
-          }`} />
+          <Robot
+            size={16}
+            className={`${
+              needsConfirmation
+                ? "text-yellow-600 dark:text-yellow-400"
+                : "text-blue-600 dark:text-blue-400"
+            }`}
+          />
         </div>
         <h4 className="font-medium flex items-center gap-2 flex-1 text-left">
           {cleanToolName(toolInvocation.toolName)}
           {!needsConfirmation && toolInvocation.state === "result" && (
-            <span className="text-xs text-green-600 dark:text-green-400">✓ Completed</span>
+            <span className="text-xs text-green-600 dark:text-green-400">
+              ✓ Completed
+            </span>
           )}
         </h4>
         <CaretDown

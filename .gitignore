@@ -142,3 +142,5 @@ dist
 .wrangler
 .dev.vars
 
+src/App.tsx
+src/components/tool-invocation-card/ToolInvocationCard.tsx
