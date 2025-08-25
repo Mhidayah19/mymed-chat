@@ -4,7 +4,7 @@ import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { APPROVAL } from "@/shared";
-import { CachedTemplatesCard } from "../CachedTemplatesCard";
+import { TemplatesCard } from "../TemplatesCard";
 import type { BookingTemplate } from "../../types";
 import type { 
   BookingTemplateItem,
@@ -45,20 +45,26 @@ export function ToolInvocationCard({
     return match ? match[1] : toolName;
   };
 
-  // Check if this is a getCachedTemplates tool and render the specialized component
+  // Check if this is a template-related tool and render the specialized component
   const cleanedToolName = cleanToolName(toolInvocation.toolName);
-  if (cleanedToolName === "getCachedTemplates" && toolInvocation.state === "result") {
+  if ((cleanedToolName === "getCachedTemplates" || cleanedToolName === "getRecommendedBooking") && toolInvocation.state === "result") {
     const result = toolInvocation.result as ToolInvocationResult;
     
     // Parse the result to extract structured data
-    let templatesData: TransformedTemplatesData | undefined;
-    console.log('Raw result from getCachedTemplates:', JSON.stringify(result, null, 2));
-    if (result && typeof result === 'object') {
+    let templatesData: any;
+    console.log(`Raw result from ${cleanedToolName}:`, JSON.stringify(result, null, 2));
+    
+    // Handle getRecommendedBooking - pass data directly to TemplatesCard
+    if (cleanedToolName === "getRecommendedBooking") {
+      templatesData = result;
+    }
+    // Handle getCachedTemplates - transform to expected format
+    else if (result && typeof result === 'object') {
       const isBookingResult = (r: ToolInvocationResult): r is BookingTemplatesResult => 
         'success' in r && 'templates' in r;
 
       if (isBookingResult(result) && result.success) {
-        // Transform the data to match CachedTemplatesCard's expected format
+        // Transform the data to match TemplatesCard's expected format
         const transformedTemplates = result.templates?.map((template: BookingTemplate): TransformedTemplate => ({
           customer: template.customer || template.customerId || 'Unknown Customer',
           customerId: template.customerId || '',
@@ -80,7 +86,7 @@ export function ToolInvocationCard({
         })) || [];
 
         templatesData = {
-          type: 'cached-templates',
+          type: 'templates',
           templates: transformedTemplates,
           count: transformedTemplates.length,
           status: result.success ? 'success' : 'error'
@@ -113,7 +119,7 @@ export function ToolInvocationCard({
               })) || [];
 
               templatesData = {
-                type: 'cached-templates',
+                type: 'templates',
                 templates: transformedTemplates,
                 count: transformedTemplates.length,
                 status: parsed.success ? 'success' : 'error'
@@ -122,7 +128,7 @@ export function ToolInvocationCard({
           } catch {
             // If parsing fails, create fallback structure
             templatesData = {
-              type: 'cached-templates',
+              type: 'templates',
               templates: [],
               count: 0,
               status: 'error'
@@ -132,12 +138,12 @@ export function ToolInvocationCard({
       }
     }
     
-    // Render CachedTemplatesCard if we have valid data
-    console.log('Transformed templatesData:', JSON.stringify(templatesData, null, 2));
+    // Render TemplatesCard if we have valid data
+    console.log('Final templatesData for TemplatesCard:', JSON.stringify(templatesData, null, 2));
     if (templatesData) {
       return (
         <div className="w-full">
-          <CachedTemplatesCard data={templatesData} />
+          <TemplatesCard data={templatesData} />
           {/* This component IS the complete response - no additional text needed */}
         </div>
       );

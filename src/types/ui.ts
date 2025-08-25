@@ -27,7 +27,7 @@ export interface TransformedTemplate {
 }
 
 export interface TransformedTemplatesData {
-  type: 'cached-templates';
+  type: 'templates';
   templates: TransformedTemplate[];
   count: number;
   status: string;

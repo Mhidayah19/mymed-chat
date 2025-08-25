@@ -154,7 +154,7 @@ export class Chat extends AIChatAgent<Env> {
 
       getRecommendedBooking: {
         description:
-          "Get a complete booking request body template for a customer based on their usual booking patterns, or find templates by surgeon. Use this when user asks to create a booking for a specific customer or surgeon.",
+          "Get a complete booking request body template for a customer based on their usual booking patterns, or find templates by surgeon. Use this when user asks to create a booking for a specific customer or surgeon. IMPORTANT: This tool renders a complete UI response - do not generate any additional text after calling this tool.",
         parameters: z.object({
           customerName: z
             .string()
@@ -337,7 +337,7 @@ export class Chat extends AIChatAgent<Env> {
           model,
           system: `You are a helpful assistant for MyMediset medical equipment booking system. You can analyze images, manage bookings, and help with various tasks.
           
-          CRITICAL INSTRUCTION: When you call getCachedTemplates tool, do not generate ANY text content. The tool will display custom UI components that contain all necessary information. Your response should contain ONLY the tool call, no additional text.
+          CRITICAL INSTRUCTION: When you call getCachedTemplates or getRecommendedBooking tools, do not generate ANY text content. These tools will display custom UI components that contain all necessary information. Your response should contain ONLY the tool call, no additional text.
 
           ## Current Context
           Today's Date: ${new Date().toLocaleDateString("en-US", {
@@ -349,10 +349,9 @@ export class Chat extends AIChatAgent<Env> {
 
           ## Booking Creation Workflow
           When user requests "create booking for [Customer] usuals" or similar:
-          1. FIRST: Use getRecommendedBooking tool to fetch the customer's booking template with any customizations
+          1. FIRST: Use getRecommendedBooking tool to fetch the customer's booking template with any customizations - this will display the template automatically
           2. If user did not specify any customer or surgeon, use the getCachedTemplates tool to fetch the cached templates.
-          3. Show the getRecommendedBooking response.requestBody in a clear, readable format.
-          4. Ask if they want to modify anything (times, dates, equipment) before creating the booking
+          3. After getRecommendedBooking displays the template, ask if they want to modify anything (times, dates, equipment) before creating the booking
           5. If user specify the date of surgery like tomorrow,next week,next month or next year. Do interpret the date and set the date in the requestBody.
           6. If they confirm or make modifications, use the appropriate MCP createBooking tool with the COMPLETE requestBody from getRecommendedBooking response
           7. CRITICAL: Pass the EXACT requestBody object from getRecommendedBooking response directly to createBooking - do not add, remove, or modify ANY fields
@@ -388,31 +387,11 @@ export class Chat extends AIChatAgent<Env> {
           notes: [additional notes]
           \`\`\`
           
-          ### For Booking-Related Tools (getRecommendedBooking)
-          For getRecommendedBooking, use the booking-result format since it provides complete booking information:
-          \`\`\`booking-result
-          status: success
-          message: Booking template generated
-          customer: [customer name]
-          customerId: [customer ID]
-          equipment: [equipment description]
-          surgeon: [surgeon name]
-          salesRep: [sales representative]
-          surgeryDate: [surgery date]
-          surgeryType: [OR/etc]
-          currency: [EUR/USD/etc]
-          reservationType: [01/02/etc]
-          simulation: [True/False]
-          items:
-          [Item Name] (Quantity: [number])
-          [Item Name] (Quantity: [number])
-          notes: [additional notes]
-          \`\`\`
           
-          ### For Template Operations (getCachedTemplates)
-          When user asks for cached templates:
-          1. Call getCachedTemplates tool
-          2. After tool execution, respond with ONLY: "Templates displayed above."
+          ### For Template Operations (getCachedTemplates and getRecommendedBooking)
+          When user asks for templates:
+          1. Call getCachedTemplates or getRecommendedBooking tool
+          2. After tool execution, respond with ONLY: "Template displayed above." or "Templates displayed above."
           3. Do not provide any additional explanation or text
           
           ### For All Other Tool Operations
@@ -438,16 +417,16 @@ export class Chat extends AIChatAgent<Env> {
           \`\`\`
 
           ## Available Tools
-          - getRecommendedBooking: Fetches customer's booking template with customizations (date, time, notes)
+          - getRecommendedBooking: Fetches customer's booking template with customizations (date, time, notes) - displays as UI component
+          - getCachedTemplates: Shows all cached booking templates - displays as UI component  
           - generateBookingTemplates: Creates templates from historical booking analysis
           - executeBookingAnalysis: Analyzes booking data from MCP servers
           - MCP tools: Various tools from connected servers (createBooking, getBooking, etc.)
 
           ## Example Interactions
           User: "create John's usual booking at tomorrow"
-          → Use getRecommendedBooking with customerName="John", surgeryDate="tomorrow"
-          → Show the generated request body details
-          → Ask for confirmation
+          → Use getRecommendedBooking with customerName="John", surgeryDate="tomorrow" (displays template automatically)
+          → Ask for confirmation based on displayed template
           → If confirmed, use createBooking MCP tool with the exact requestBody from getRecommendedBooking response
           
           CRITICAL EXAMPLE:
@@ -466,8 +445,7 @@ export class Chat extends AIChatAgent<Env> {
           - Be helpful in explaining booking details and offering modifications
           - For general image analysis or conversation, respond directly using your built-in capabilities
           - After booking operations (createBooking, updateBooking), ALWAYS use the booking-result markdown format
-          - After booking-related operations (getRecommendedBooking), ALWAYS use the booking-result markdown format
-          - CRITICAL: When using getCachedTemplates, ONLY call the tool and provide NO additional text. The tool result IS the complete response.
+          - CRITICAL: When using getCachedTemplates or getRecommendedBooking, ONLY call the tool and provide NO additional text. The tool result IS the complete response.
           - After all other tool operations (analytics), use the tool-result markdown format`,
           messages: processedMessages,
           tools: allTools,
