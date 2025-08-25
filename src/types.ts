@@ -67,6 +67,7 @@ export interface BookingTemplate {
     notes: string;
     priority: "high" | "medium" | "low";
   };
+  reservationType?: string;
 }
 
 export interface BookingAnalysisState {

@@ -4,6 +4,16 @@ import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { APPROVAL } from "@/shared";
+import { CachedTemplatesCard } from "../CachedTemplatesCard";
+import type { BookingTemplate } from "../../types";
+import type { 
+  BookingTemplateItem,
+  TransformedTemplate,
+  TransformedTemplatesData,
+  ContentResult,
+  ToolInvocationResult,
+  BookingTemplatesResult
+} from "@/types/ui";
 
 interface ToolInvocation {
   toolName: string;
@@ -11,9 +21,7 @@ interface ToolInvocation {
   state: "call" | "result" | "partial-call";
   step?: number;
   args: Record<string, unknown>;
-  result?: {
-    content?: Array<{ type: string; text: string }>;
-  };
+  result?: ToolInvocationResult;
 }
 
 interface ToolInvocationCardProps {
@@ -36,6 +44,105 @@ export function ToolInvocationCard({
     const match = toolName.match(/^[A-Za-z0-9\-]+_(.+)$/);
     return match ? match[1] : toolName;
   };
+
+  // Check if this is a getCachedTemplates tool and render the specialized component
+  const cleanedToolName = cleanToolName(toolInvocation.toolName);
+  if (cleanedToolName === "getCachedTemplates" && toolInvocation.state === "result") {
+    const result = toolInvocation.result as ToolInvocationResult;
+    
+    // Parse the result to extract structured data
+    let templatesData: TransformedTemplatesData | undefined;
+    console.log('Raw result from getCachedTemplates:', JSON.stringify(result, null, 2));
+    if (result && typeof result === 'object') {
+      const isBookingResult = (r: ToolInvocationResult): r is BookingTemplatesResult => 
+        'success' in r && 'templates' in r;
+
+      if (isBookingResult(result) && result.success) {
+        // Transform the data to match CachedTemplatesCard's expected format
+        const transformedTemplates = result.templates?.map((template: BookingTemplate): TransformedTemplate => ({
+          customer: template.customer || template.customerId || 'Unknown Customer',
+          customerId: template.customerId || '',
+          surgeon: template.surgeon || 'Unknown Surgeon',
+          salesRep: template.salesrep || 'Unknown Sales Rep',
+          frequency: template.frequency || 0,
+          totalBookings: template.totalBookings || 0,
+          equipment: template.equipment || template.items?.[0]?.materialId || 'No specific equipment',
+          items: template.items?.map((item: BookingTemplateItem) => ({
+            materialId: item.materialId,
+            name: item.name || item.materialId,
+            quantity: item.quantity || 1,
+            description: item.description,
+            availability: item.availability
+          })) || [],
+          reservationType: template.reservationType || '01',
+          confidence: template.confidence,
+          insights: template.insights
+        })) || [];
+
+        templatesData = {
+          type: 'cached-templates',
+          templates: transformedTemplates,
+          count: transformedTemplates.length,
+          status: result.success ? 'success' : 'error'
+        };
+      } else if ('content' in result && result.content && Array.isArray(result.content)) {
+        // Try to parse from content array
+        const textContent = result.content.find((c) => c.type === 'text')?.text;
+        if (textContent) {
+          try {
+            const parsed = JSON.parse(textContent) as ToolInvocationResult;
+            if (isBookingResult(parsed) && parsed.success) {
+              const transformedTemplates = parsed.templates?.map((template: BookingTemplate): TransformedTemplate => ({
+                customer: template.customer || template.customerId || 'Unknown Customer',
+                customerId: template.customerId || '',
+                surgeon: template.surgeon || 'Unknown Surgeon',
+                salesRep: template.salesrep || 'Unknown Sales Rep',
+                frequency: template.frequency || 0,
+                totalBookings: template.totalBookings || 0,
+                equipment: template.equipment || template.items?.[0]?.materialId || 'No specific equipment',
+                items: template.items?.map((item: BookingTemplateItem) => ({
+                  materialId: item.materialId,
+                  name: item.name || item.materialId,
+                  quantity: item.quantity || 1,
+                  description: item.description,
+                  availability: item.availability
+                })) || [],
+                reservationType: template.reservationType || '01',
+                confidence: template.confidence,
+                insights: template.insights
+              })) || [];
+
+              templatesData = {
+                type: 'cached-templates',
+                templates: transformedTemplates,
+                count: transformedTemplates.length,
+                status: parsed.success ? 'success' : 'error'
+              };
+            }
+          } catch {
+            // If parsing fails, create fallback structure
+            templatesData = {
+              type: 'cached-templates',
+              templates: [],
+              count: 0,
+              status: 'error'
+            };
+          }
+        }
+      }
+    }
+    
+    // Render CachedTemplatesCard if we have valid data
+    console.log('Transformed templatesData:', JSON.stringify(templatesData, null, 2));
+    if (templatesData) {
+      return (
+        <div className="w-full">
+          <CachedTemplatesCard data={templatesData} />
+          {/* This component IS the complete response - no additional text needed */}
+        </div>
+      );
+    }
+  }
 
   return (
     <Card
@@ -135,9 +242,9 @@ export function ToolInvocationCard({
               <pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[450px]">
                 {(() => {
                   const result = toolInvocation.result;
-                  if (typeof result === "object" && result.content) {
-                    return result.content
-                      .map((item: { type: string; text: string }) => {
+                  if (typeof result === "object" && 'content' in result && result.content) {
+                    const contentResult = result as ContentResult;
+                    return contentResult.content?.map((item: { type: string; text: string }) => {
                         if (
                           item.type === "text" &&
                           item.text.startsWith("\n~ Page URL:")

@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef, useCallback, use } from "react";
+import { Theme } from "@radix-ui/themes";
+import "@radix-ui/themes/styles.css";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "agents/ai-react";
 import { agentFetch } from "agents/client";
@@ -255,8 +257,9 @@ export default function Chat() {
   const activeToolName = getActiveToolName();
 
   return (
-    <div className="h-screen w-full flex flex-col bg-fixed overflow-hidden bg-white dark:bg-gray-950">
-      <HasOpenAIKey />
+    <Theme accentColor="cyan" grayColor="slate" radius="medium" scaling="100%">
+      <div className="h-screen w-full flex flex-col bg-fixed overflow-hidden bg-white dark:bg-gray-950">
+        <HasOpenAIKey />
 
       {/* Layout Container */}
       <div className="flex flex-1 h-full overflow-hidden">
@@ -915,6 +918,7 @@ export default function Chat() {
         </div>
       )}
     </div>
+    </Theme>
   );
 }
 

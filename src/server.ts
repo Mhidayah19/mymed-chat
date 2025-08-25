@@ -286,7 +286,7 @@ export class Chat extends AIChatAgent<Env> {
       },
       getCachedTemplates: {
         description:
-          "Get the cached booking templates that were previously generated",
+          "Get the cached booking templates that were previously generated. IMPORTANT: This tool renders a complete UI response - do not generate any additional text after calling this tool.",
         parameters: z.object({}),
         execute: async () => {
           try {
@@ -294,7 +294,15 @@ export class Chat extends AIChatAgent<Env> {
               this.env.BookingAnalysisAgent,
               AGENT_NAMES.MAIN_ANALYZER
             );
-            return await (bookingAgent as any).getCachedTemplates();
+            const templates = await (bookingAgent as any).getCachedTemplates();
+            
+            // Return structured data for Generative UI - this IS the complete response
+            return {
+              type: 'cached-templates',
+              ...templates,
+              // Special marker to indicate this is a complete UI response
+              _complete_ui_response: true
+            };
           } catch (error) {
             console.error(
               "Error calling BookingAnalysisAgent.getCachedTemplates:",
@@ -328,6 +336,8 @@ export class Chat extends AIChatAgent<Env> {
         const result = streamText({
           model,
           system: `You are a helpful assistant for MyMediset medical equipment booking system. You can analyze images, manage bookings, and help with various tasks.
+          
+          CRITICAL INSTRUCTION: When you call getCachedTemplates tool, do not generate ANY text content. The tool will display custom UI components that contain all necessary information. Your response should contain ONLY the tool call, no additional text.
 
           ## Current Context
           Today's Date: ${new Date().toLocaleDateString("en-US", {
@@ -400,17 +410,10 @@ export class Chat extends AIChatAgent<Env> {
           \`\`\`
           
           ### For Template Operations (getCachedTemplates)
-          For getCachedTemplates, use the booking-result format for each template (creates multiple cards):
-          \`\`\`booking-result
-          status: success
-          message: Template Retrieved
-          customer: [hospital/clinic name]
-          template: [template name]
-          surgeon: [surgeon name]
-          salesRep: [sales rep]
-          frequency: [frequency]
-          [other template details...]
-          \`\`\`
+          When user asks for cached templates:
+          1. Call getCachedTemplates tool
+          2. After tool execution, respond with ONLY: "Templates displayed above."
+          3. Do not provide any additional explanation or text
           
           ### For All Other Tool Operations
           For other tool execution (analytics, etc.), use this format:
@@ -423,25 +426,6 @@ export class Chat extends AIChatAgent<Env> {
           \`\`\`
           
           Examples:
-          \`\`\`tool-result
-          tool: getCachedTemplates
-          status: success
-          title: Cached Booking Templates Retrieved
-          count: 2
-          templates:
-          - ROYAL PRINCE ALFRED HOSPITAL: Trauma Surgery Set
-            - Surgeon: Dr Stephen Hawkins
-            - Sales Rep: Muhammad Hidayah
-            - Reservation Type: 01
-            - Frequency: 1
-            - Total Bookings: 1
-          - MEDICLINIC PARKVIEW HOSPITAL: Spinal Fusion Set
-            - Surgeon: Dr Stephen Hawkins
-            - Sales Rep: Muhammad Hidayah
-            - Reservation Type: 01
-            - Frequency: 8
-            - Total Bookings: 9
-          \`\`\`
           
           \`\`\`tool-result
           tool: getRecommendedBooking
@@ -482,7 +466,8 @@ export class Chat extends AIChatAgent<Env> {
           - Be helpful in explaining booking details and offering modifications
           - For general image analysis or conversation, respond directly using your built-in capabilities
           - After booking operations (createBooking, updateBooking), ALWAYS use the booking-result markdown format
-          - After booking-related operations (getRecommendedBooking, getCachedTemplates), ALWAYS use the booking-result markdown format  
+          - After booking-related operations (getRecommendedBooking), ALWAYS use the booking-result markdown format
+          - CRITICAL: When using getCachedTemplates, ONLY call the tool and provide NO additional text. The tool result IS the complete response.
           - After all other tool operations (analytics), use the tool-result markdown format`,
           messages: processedMessages,
           tools: allTools,
