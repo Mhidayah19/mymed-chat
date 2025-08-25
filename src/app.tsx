@@ -11,7 +11,8 @@ import type { tools } from "./tools";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import mymLogo from "./assets/mymLogoTxt.svg";
+import mymLogo from "./assets/mymediset_monogram_colour_RGB_AW.svg";
+import aiIcon from "./assets/AI.svg";
 
 // Component imports
 import { Button } from "@/components/button/Button";
@@ -31,6 +32,11 @@ import {
   parseBookingResultInfo,
   removeBookingResultsFromText,
 } from "@/components/booking/BookingResultCard";
+import {
+  GenericToolResultCard,
+  parseToolResults,
+  removeToolResultsFromText,
+} from "@/components/tool/GenericToolResultCard";
 import {
   ChatMaterialCard,
   parseMaterialInfo,
@@ -54,6 +60,8 @@ import {
   Trash,
   List,
   X,
+  Sparkle,
+  PaperPlaneTilt,
 } from "@phosphor-icons/react";
 
 // List of tools that require human confirmation
@@ -394,8 +402,8 @@ export default function Chat() {
               </Button>
               <div className="flex items-center">
                 <img src={mymLogo} alt="MYM Logo" className="h-5" />
-                <span className="ml-2 font-semibold text-sm sm:text-base">
-                  Agent
+                <span className="ml-2 text-lg font-semibold truncate bg-gradient-to-r from-[#00D4FF] to-[#8B5CF6] bg-clip-text text-transparent">
+                  Mymediset Agent
                 </span>
               </div>
             </div>
@@ -543,35 +551,38 @@ export default function Chat() {
                                         >
                                           {/* Process all card types */}
                                           {(() => {
-                                            console.log("🚀 Processing message part:", { text: part.text, type: part.type });
-                                            
                                             // Parse booking results first
                                             const bookingResults =
                                               parseBookingResultInfo(part.text);
-                                            console.log("📊 App.tsx - booking results parsed:", bookingResults.length);
-                                            
-                                            const textWithoutBookingResults =
+                                            let remainingText =
                                               removeBookingResultsFromText(
                                                 part.text
                                               );
 
-                                            // Then parse regular bookings from remaining text
-                                            const bookings = parseBookingInfo(
-                                              textWithoutBookingResults
+                                            // Parse generic tool results
+                                            const toolResults = parseToolResults(
+                                              remainingText
                                             );
-                                            const textWithoutBookings =
-                                              removeBookingsFromText(
-                                                textWithoutBookingResults
-                                              );
+                                            remainingText = removeToolResultsFromText(
+                                              remainingText
+                                            );
+
+                                            // Parse regular bookings from remaining text
+                                            const bookings = parseBookingInfo(
+                                              remainingText
+                                            );
+                                            remainingText = removeBookingsFromText(
+                                              remainingText
+                                            );
 
                                             // Finally parse materials from remaining text
                                             const materials =
                                               parseMaterialInfo(
-                                                textWithoutBookings
+                                                remainingText
                                               );
                                             const textWithoutMaterials =
                                               removeMaterialsFromText(
-                                                textWithoutBookings
+                                                remainingText
                                               );
 
                                             // Return clean text and all card types
@@ -613,6 +624,19 @@ export default function Chat() {
                                                     {bookingResults.map(
                                                       (result, idx) => (
                                                         <BookingResultCard
+                                                          key={idx}
+                                                          result={result}
+                                                        />
+                                                      )
+                                                    )}
+                                                  </div>
+                                                )}
+
+                                                {toolResults.length > 0 && (
+                                                  <div className="mt-3">
+                                                    {toolResults.map(
+                                                      (result, idx) => (
+                                                        <GenericToolResultCard
                                                           key={idx}
                                                           result={result}
                                                         />
@@ -790,54 +814,62 @@ export default function Chat() {
 
           {/* Input Area */}
           <form
-            onSubmit={(e) =>
-              handleAgentSubmit(e, {
-                data: {
-                  annotations: {
-                    hello: "world",
-                  },
-                },
-              })
-            }
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleAgentSubmit(e);
+            }}
             className="p-4 sm:p-6 bg-input-background relative"
           >
-            <div className="max-w-4xl mx-auto">
-              <div className="flex items-center gap-2">
-                <div className="flex-1 relative">
-                  <Input
-                    disabled={pendingToolCallConfirmation || isLoading}
-                    placeholder={
-                      pendingToolCallConfirmation
-                        ? "Please respond to the tool confirmation above..."
-                        : isLoading
-                          ? "Waiting for response..."
-                          : "Type your message..."
-                    }
-                    className="pl-3 sm:pl-4 pr-8 sm:pr-10 py-3 sm:py-4 w-full rounded-3xl text-sm"
-                    value={agentInput}
-                    onChange={handleAgentInputChange}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleAgentSubmit(e as unknown as React.FormEvent);
-                      }
-                    }}
-                    onValueChange={undefined}
-                  />
+            <div className="relative w-full max-w-4xl mx-auto">
+              <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200" style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}>
+                <div className="relative flex items-center bg-white rounded-full py-2">
+                {/* AI icon on the left */}
+                <div className="pl-6 pr-4">
+                  <img src={aiIcon} alt="AI" className="w-5 h-5 opacity-60" />
                 </div>
-
-                <Button
+                
+                <Input
+                  disabled={pendingToolCallConfirmation || isLoading}
+                  placeholder="Ask anything"
+                  className="flex-1 bg-transparent border-0 h-16 text-lg px-0
+                    focus:outline-none focus:ring-0 focus:border-0
+                    file:border-0 file:bg-transparent file:text-base file:font-medium
+                    placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={agentInput}
+                  onChange={handleAgentInputChange}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAgentSubmit(e as unknown as React.FormEvent);
+                    }
+                  }}
+                  onValueChange={undefined}
+                  spellCheck="false"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  autoComplete="off"
+                  inputMode="search"
+                  enterKeyHint="search"
+                  aria-label="Ask anything"
+                />
+                
+                <button
                   type="submit"
-                  shape="square"
-                  className="rounded-full h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
+                  className="mr-3 inline-flex items-center justify-center h-9 w-9 rounded-full
+                    transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed 
+                    text-black hover:opacity-90
+                    focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-1"
+                  style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}
+                  title="Send message"
                   disabled={
                     pendingToolCallConfirmation ||
                     isLoading ||
                     !agentInput.trim()
                   }
                 >
-                  <PaperPlaneRight size={16} />
-                </Button>
+                  <PaperPlaneTilt size={18} className="rotate-45" />
+                </button>
+                </div>
               </div>
             </div>
           </form>

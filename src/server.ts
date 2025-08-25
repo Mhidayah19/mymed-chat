@@ -167,7 +167,9 @@ export class Chat extends AIChatAgent<Env> {
           surgeryDate: z
             .string()
             .optional()
-            .describe("Surgery date (e.g., 'tomorrow', 'next week', 'next month', 'next year', '2024-01-15')"),
+            .describe(
+              "Surgery date (e.g., 'tomorrow', 'next week', 'next month', 'next year', '2024-01-15')"
+            ),
           notes: z
             .string()
             .optional()
@@ -352,6 +354,8 @@ export class Chat extends AIChatAgent<Env> {
           13. IMPORTANT: After any booking operation (create/update), display results in a structured booking-result block format
 
           ## Structured Response Format
+          
+          ### For Booking Operations
           For booking operation results, always use this comprehensive markdown format:
           \`\`\`booking-result
           status: success|error|warning
@@ -372,6 +376,81 @@ export class Chat extends AIChatAgent<Env> {
           [Item Name] (Quantity: [number])
           [Item Name] (Quantity: [number])
           notes: [additional notes]
+          \`\`\`
+          
+          ### For Booking-Related Tools (getRecommendedBooking)
+          For getRecommendedBooking, use the booking-result format since it provides complete booking information:
+          \`\`\`booking-result
+          status: success
+          message: Booking template generated
+          customer: [customer name]
+          customerId: [customer ID]
+          equipment: [equipment description]
+          surgeon: [surgeon name]
+          salesRep: [sales representative]
+          surgeryDate: [surgery date]
+          surgeryType: [OR/etc]
+          currency: [EUR/USD/etc]
+          reservationType: [01/02/etc]
+          simulation: [True/False]
+          items:
+          [Item Name] (Quantity: [number])
+          [Item Name] (Quantity: [number])
+          notes: [additional notes]
+          \`\`\`
+          
+          ### For Template Operations (getCachedTemplates)
+          For getCachedTemplates, use the booking-result format for each template (creates multiple cards):
+          \`\`\`booking-result
+          status: success
+          message: Template Retrieved
+          customer: [hospital/clinic name]
+          template: [template name]
+          surgeon: [surgeon name]
+          salesRep: [sales rep]
+          frequency: [frequency]
+          [other template details...]
+          \`\`\`
+          
+          ### For All Other Tool Operations
+          For other tool execution (analytics, etc.), use this format:
+          \`\`\`tool-result
+          tool: [tool name]
+          status: success|error|info
+          title: [descriptive title]
+          [key]: [value]
+          [key]: [value]
+          \`\`\`
+          
+          Examples:
+          \`\`\`tool-result
+          tool: getCachedTemplates
+          status: success
+          title: Cached Booking Templates Retrieved
+          count: 2
+          templates:
+          - ROYAL PRINCE ALFRED HOSPITAL: Trauma Surgery Set
+            - Surgeon: Dr Stephen Hawkins
+            - Sales Rep: Muhammad Hidayah
+            - Reservation Type: 01
+            - Frequency: 1
+            - Total Bookings: 1
+          - MEDICLINIC PARKVIEW HOSPITAL: Spinal Fusion Set
+            - Surgeon: Dr Stephen Hawkins
+            - Sales Rep: Muhammad Hidayah
+            - Reservation Type: 01
+            - Frequency: 8
+            - Total Bookings: 9
+          \`\`\`
+          
+          \`\`\`tool-result
+          tool: getRecommendedBooking
+          status: success
+          title: Booking Recommendation Generated
+          customer: HOSPITAL NAME
+          surgeon: Dr Stephen Hawkins
+          equipment: Cranial Kit
+          itemCount: 5
           \`\`\`
 
           ## Available Tools
@@ -402,7 +481,9 @@ export class Chat extends AIChatAgent<Env> {
           - For booking creation, ALWAYS show the template first before creating
           - Be helpful in explaining booking details and offering modifications
           - For general image analysis or conversation, respond directly using your built-in capabilities
-          - After booking operations, ALWAYS use the booking-result markdown format shown above`,
+          - After booking operations (createBooking, updateBooking), ALWAYS use the booking-result markdown format
+          - After booking-related operations (getRecommendedBooking, getCachedTemplates), ALWAYS use the booking-result markdown format  
+          - After all other tool operations (analytics), use the tool-result markdown format`,
           messages: processedMessages,
           tools: allTools,
           experimental_telemetry: {

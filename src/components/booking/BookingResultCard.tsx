@@ -18,10 +18,12 @@ export interface BookingResultInfo {
   reservationType?: string;
   surgeryType?: string;
   simulation?: string;
+  isLoading?: boolean;
   items?: Array<{
     name: string;
     quantity: number;
     materialId?: string;
+    availability?: string;
   }>;
 }
 
@@ -42,12 +44,18 @@ export const typingAnimationClass = `
     to { opacity: 1; transform: translateY(0); }
   }
 
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
   .typing-cursor {
     border-right: 2px solid;
     animation: blink 1s step-end infinite;
   }
 
   .typing-animation {
+    will-change: width;
     display: inline-block;
     overflow: hidden;
     white-space: nowrap;
@@ -55,8 +63,20 @@ export const typingAnimationClass = `
   }
 
   .fade-in {
+    will-change: opacity, transform;
     opacity: 0;
     animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.6) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite linear;
   }
 
   .delay-100 { animation-delay: 100ms; }
@@ -102,32 +122,35 @@ export const BookingResultCard = ({
     }
   }, [animationStage]);
 
-  // Status icon and colors
+  // Status icon and colors - MyMediset Design System
   const getStatusConfig = () => {
     switch (result.status) {
       case "success":
         return {
           icon: <CheckCircle size={20} />,
-          iconColor: "text-green-600 dark:text-green-400",
-          bgColor: "bg-green-50 dark:bg-green-900/20",
-          borderColor: "border-green-200 dark:border-green-800",
-          titleColor: "text-green-800 dark:text-green-200",
+          iconColor: "text-[#10b981]", // Medical analytics performance green
+          bgColor: "bg-white", // Clean white background
+          borderColor: "border-[#10b981]/20",
+          titleColor: "text-[#166534]", // Dark green for text
+          shadowColor: "shadow-[0_4px_6px_-1px_rgba(16,185,129,0.1)]",
         };
       case "error":
         return {
           icon: <XCircle size={20} />,
-          iconColor: "text-red-600 dark:text-red-400",
-          bgColor: "bg-red-50 dark:bg-red-900/20",
-          borderColor: "border-red-200 dark:border-red-800",
-          titleColor: "text-red-800 dark:text-red-200",
+          iconColor: "text-[#ef4444]", // Medical analytics critical red
+          bgColor: "bg-gradient-to-br from-[#fef2f2] to-[#fee2e2]", // Light red gradient
+          borderColor: "border-[#ef4444]/20",
+          titleColor: "text-[#991b1b]", // Dark red for text
+          shadowColor: "shadow-[0_4px_6px_-1px_rgba(239,68,68,0.1)]",
         };
       default:
         return {
           icon: <Clock size={20} />,
-          iconColor: "text-yellow-600 dark:text-yellow-400",
-          bgColor: "bg-yellow-50 dark:bg-yellow-900/20",
-          borderColor: "border-yellow-200 dark:border-yellow-800",
-          titleColor: "text-yellow-800 dark:text-yellow-200",
+          iconColor: "text-[#f59e0b]", // Medical analytics warning amber
+          bgColor: "bg-gradient-to-br from-[#fffbeb] to-[#fef3c7]", // Light amber gradient
+          borderColor: "border-[#f59e0b]/20",
+          titleColor: "text-[#92400e]", // Dark amber for text
+          shadowColor: "shadow-[0_4px_6px_-1px_rgba(245,158,11,0.1)]",
         };
     }
   };
@@ -135,175 +158,248 @@ export const BookingResultCard = ({
   const statusConfig = getStatusConfig();
 
   return (
-    <div
-      className={`${statusConfig.bgColor} rounded-md border ${statusConfig.borderColor} shadow-sm my-2`}
+    <div 
+      role="article"
+      aria-label={`Booking ${result.bookingId || ''} - ${result.status} status`}
+      className="my-4 rounded-[20px] p-0.5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg focus-within:scale-[1.02] focus-within:shadow-lg" 
+      style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}
+      tabIndex={0}
     >
-      <div className="p-4">
-        {/* Header with status icon and message */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className={`${statusConfig.iconColor} fade-in mt-0.5`}>
-            {statusConfig.icon}
-          </div>
-          <div className="flex-1">
-            <h3
-              className={`font-semibold text-sm ${statusConfig.titleColor} fade-in ${animationStage >= 1 ? "typing-animation" : "opacity-0"}`}
-            >
-              {result.message}
-              {animationStage === 1 && showTypingCursor && (
-                <span className="typing-cursor">&nbsp;</span>
-              )}
-            </h3>
-          </div>
-        </div>
-
-        {/* Booking details */}
-        <div className="space-y-3 text-sm">
-          {/* Booking ID */}
-          {result.bookingId && (
-            <div
-              className={`flex items-center gap-2 fade-in ${animationStage >= 2 ? "" : "opacity-0"} delay-200`}
-            >
-              <Calendar size={16} className="text-[rgb(0,104,120)]" />
-              <span className="font-medium">Booking ID:</span>
-              <span className="font-mono text-[rgb(0,104,120)]">
-                {result.bookingId}
-                {animationStage === 2 && showTypingCursor && (
-                  <span className="typing-cursor">&nbsp;</span>
-                )}
-              </span>
-            </div>
-          )}
-
-          {/* Customer Information */}
-          {result.customer && (
-            <div className="grid grid-cols-1 gap-1 fade-in delay-300">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Customer:</span>
-                <span>{result.customer}</span>
-              </div>
-              {result.customerId && (
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Customer ID:</span>
-                  <span>{result.customerId}</span>
+      <div
+        className={`
+          ${statusConfig.bgColor} 
+          backdrop-blur-md backdrop-filter 
+          rounded-[20px]
+          ${statusConfig.shadowColor}
+          overflow-hidden
+        `}
+      >
+        <div className="p-6">
+          {result.isLoading ? (
+            <div className="space-y-4" aria-label="Loading booking details">
+              <div className="flex items-start gap-4">
+                <div className="w-5 h-5 rounded-full bg-gray-200 shimmer"></div>
+                <div className="flex-1">
+                  <div className="h-6 bg-gray-200 rounded w-3/4 shimmer"></div>
                 </div>
-              )}
+              </div>
+              <div className="space-y-3">
+                <div className="h-12 bg-gray-200 rounded shimmer"></div>
+                <div className="h-24 bg-gray-200 rounded shimmer"></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="h-16 bg-gray-200 rounded shimmer"></div>
+                  <div className="h-16 bg-gray-200 rounded shimmer"></div>
+                  <div className="h-16 bg-gray-200 rounded shimmer"></div>
+                </div>
+              </div>
             </div>
-          )}
+          ) : (
+            <div className="space-y-6">
+              <header className="flex items-start gap-4">
+                <div 
+                  className={`${statusConfig.iconColor} fade-in mt-1`}
+                  role="img"
+                  aria-label={`${result.status} status`}
+                >
+                  {statusConfig.icon}
+                </div>
+                <div className="flex-1">
+                  <h3 className={`font-semibold text-base text-black dark:text-white fade-in ${animationStage >= 1 ? "typing-animation" : "opacity-0"}`}>
+                    {result.message}
+                    {animationStage === 1 && showTypingCursor && (
+                      <span className="typing-cursor">&nbsp;</span>
+                    )}
+                  </h3>
+                </div>
+              </header>
 
-          {/* Equipment and Personnel */}
-          <div className="grid grid-cols-1 gap-1 fade-in delay-400">
-            {result.equipment && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Equipment:</span>
-                <span>{result.equipment}</span>
-              </div>
-            )}
-            {result.surgeon && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Surgeon:</span>
-                <span>{result.surgeon}</span>
-              </div>
-            )}
-            {result.salesRep && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Sales Representative:</span>
-                <span>{result.salesRep}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Surgery Details */}
-          <div className="grid grid-cols-1 gap-1 fade-in delay-500">
-            {result.surgeryDate && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Surgery Date:</span>
-                <span>
-                  {result.surgeryDate}
-                  {result.surgeryTime && ` at ${result.surgeryTime}`}
-                </span>
-              </div>
-            )}
-            {result.surgeryType && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Surgery Type:</span>
-                <span>{result.surgeryType}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Items List */}
-          {result.items && result.items.length > 0 && (
-            <div className="fade-in delay-600">
-              <span className="font-medium block mb-2">Items:</span>
-              <div className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3 space-y-1">
-                {result.items.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center text-xs">
-                    <span className="flex-1">{item.name}</span>
-                    <span className="text-neutral-600 dark:text-neutral-400 ml-2">
-                      (Quantity: {item.quantity})
+              {/* Booking details */}
+              <div className="space-y-4 text-sm">
+                {/* Booking ID */}
+                {result.bookingId && (
+                  <div
+                    className={`flex items-center gap-3 p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20 fade-in ${animationStage >= 2 ? "" : "opacity-0"} delay-200`}
+                  >
+                    <Calendar size={18} className="text-gray-700" />
+                    <span className="font-medium text-black">Booking ID:</span>
+                    <span className="font-mono text-gray-700 font-semibold">
+                      {result.bookingId}
+                      {animationStage === 2 && showTypingCursor && (
+                        <span className="typing-cursor">&nbsp;</span>
+                      )}
                     </span>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                )}
 
-          {/* Operational Details */}
-          <div className="grid grid-cols-2 gap-4 text-xs fade-in delay-700">
-            {result.currency && (
-              <div>
-                <span className="font-medium">Currency:</span>
-                <span className="ml-1">{result.currency}</span>
-              </div>
-            )}
-            {result.reservationType && (
-              <div>
-                <span className="font-medium">Reservation Type:</span>
-                <span className="ml-1">{result.reservationType}</span>
-              </div>
-            )}
-            {result.simulation && (
-              <div>
-                <span className="font-medium">Simulation:</span>
-                <span className="ml-1">{result.simulation}</span>
-              </div>
-            )}
-          </div>
+                {/* Customer Information */}
+                {result.customer && (
+                  <div className="space-y-2 fade-in delay-300">
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-black min-w-[120px]">
+                        Customer:
+                      </span>
+                      <span className="text-gray-700 font-medium">
+                        {result.customer}
+                      </span>
+                    </div>
+                    {result.customerId && (
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium text-black min-w-[120px]">
+                          Customer ID:
+                        </span>
+                        <span className="text-gray-600">{result.customerId}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-          {/* Availability Status */}
-          {result.availability && (
-            <div className="flex items-center gap-2 fade-in delay-800">
-              <span className="font-medium">Availability:</span>
-              <span
-                className={`px-2 py-1 rounded-full text-xs ${
-                  result.availability.toLowerCase().includes("available") &&
-                  !result.availability.toLowerCase().includes("not")
-                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                }`}
-              >
-                {result.availability}
-              </span>
-            </div>
-          )}
+                {/* Equipment and Personnel */}
+                <div className="space-y-2 fade-in delay-400">
+                  {result.equipment && (
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-black min-w-[120px]">
+                        Equipment:
+                      </span>
+                      <span className="text-gray-700">{result.equipment}</span>
+                    </div>
+                  )}
+                  {result.surgeon && (
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-black min-w-[120px]">
+                        Surgeon:
+                      </span>
+                      <span className="text-gray-700">{result.surgeon}</span>
+                    </div>
+                  )}
+                  {result.salesRep && (
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-black min-w-[120px]">
+                        Sales Rep:
+                      </span>
+                      <span className="text-gray-700">{result.salesRep}</span>
+                    </div>
+                  )}
+                </div>
 
-          {/* Notes */}
-          {result.notes && (
-            <div className="mt-3 p-3 bg-neutral-100 dark:bg-neutral-800 rounded-lg text-xs fade-in delay-900">
-              <span className="font-medium">Notes: </span>
-              {result.notes}
+                {/* Surgery Details */}
+                <div className="space-y-2 fade-in delay-500">
+                  {result.surgeryDate && (
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-black min-w-[120px]">
+                        Surgery Date:
+                      </span>
+                      <span className="text-gray-700">
+                        {result.surgeryDate}
+                        {result.surgeryTime && ` at ${result.surgeryTime}`}
+                      </span>
+                    </div>
+                  )}
+                  {result.surgeryType && (
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-black min-w-[120px]">
+                        Surgery Type:
+                      </span>
+                      <span className="text-gray-700">{result.surgeryType}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Items List */}
+                {result.items && result.items.length > 0 && (
+                  <div className="fade-in delay-600">
+                    <h4 className="font-medium block mb-3 text-black">Items:</h4>
+                    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 space-y-3 border border-white/30 divide-y divide-gray-100">
+                      {result.items.map((item, index) => (
+                        <div
+                          key={index}
+                          className="py-3 first:pt-0 last:pb-0"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex-1 flex items-center gap-3 flex-wrap">
+                              <span className="text-gray-700 font-medium">
+                                {item.name}
+                              </span>
+                              {item.availability && (
+                                <span
+                                  className={`px-2 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1
+                                    ${item.availability.toLowerCase().includes("available") &&
+                                    !item.availability.toLowerCase().includes("not")
+                                      ? "bg-gradient-to-r from-[#10b981] to-[#16a34a] text-white"
+                                      : "bg-gradient-to-r from-[#ef4444] to-[#dc2626] text-white"
+                                    }`}
+                                  role="status"
+                                >
+                                  {item.availability.toLowerCase().includes("available") ? 
+                                    <CheckCircle size={12} weight="fill" /> : 
+                                    <XCircle size={12} weight="fill" />
+                                  }
+                                  {item.availability}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500 text-sm">Quantity:</span>
+                              <span className="text-gray-700 font-semibold">{item.quantity}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Operational Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 text-sm fade-in delay-700">
+                  {result.currency && (
+                    <div className="text-center p-3 bg-white/60 rounded-lg">
+                      <span className="block text-gray-500 text-xs mb-1">
+                        Currency
+                      </span>
+                      <span className="font-semibold text-black">
+                        {result.currency}
+                      </span>
+                    </div>
+                  )}
+                  {result.reservationType && (
+                    <div className="text-center p-3 bg-white/60 rounded-lg">
+                      <span className="block text-gray-500 text-xs mb-1">
+                        Reservation
+                      </span>
+                      <span className="font-semibold text-black">
+                        {result.reservationType}
+                      </span>
+                    </div>
+                  )}
+                  {result.simulation && (
+                    <div className="text-center p-3 bg-white/60 rounded-lg">
+                      <span className="block text-gray-500 text-xs mb-1">
+                        Simulation
+                      </span>
+                      <span className="font-semibold text-black">
+                        {result.simulation}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Notes */}
+                {result.notes && (
+                  <div className="p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20 text-sm fade-in delay-900">
+                    <span className="font-medium text-black block mb-2">Notes:</span>
+                    <span className="text-gray-700 leading-relaxed">
+                      {result.notes}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
     </div>
   );
-};
-
-// Parsing function to extract booking result info from markdown text
+};// Parsing function to extract booking result info from markdown text
 export const parseBookingResultInfo = (text: string): BookingResultInfo[] => {
-  console.log("🔍 parseBookingResultInfo called with text:", text);
-  
   const results: BookingResultInfo[] = [];
 
   // Pattern for complete booking-result blocks
@@ -316,10 +412,8 @@ export const parseBookingResultInfo = (text: string): BookingResultInfo[] => {
   let matchCount = 0;
   while ((match = completeResultPattern.exec(text)) !== null) {
     matchCount++;
-    console.log(`📋 Found complete booking-result block #${matchCount}:`, match[1]);
     const resultContent = match[1];
     const result = extractBookingResultDetails(resultContent);
-    console.log("✅ Parsed result:", result);
     results.push(result);
   }
 
@@ -327,15 +421,12 @@ export const parseBookingResultInfo = (text: string): BookingResultInfo[] => {
   if (matchCount === 0) {
     const incompleteMatch = text.match(incompleteResultPattern);
     if (incompleteMatch && !text.endsWith("```")) {
-      console.log("⚠️ Found incomplete booking-result block:", incompleteMatch[1]);
       const incompleteContent = incompleteMatch[1];
       const result = extractBookingResultDetails(incompleteContent);
-      console.log("✅ Parsed incomplete result:", result);
       results.push(result);
     }
   }
 
-  console.log(`🎯 Total booking results found: ${results.length}`, results);
   return results;
 };
 
@@ -350,12 +441,15 @@ const extractBookingResultDetails = (content: string): BookingResultInfo => {
   };
 
   let isInItemsSection = false;
-  
+
   lines.forEach((line) => {
     const cleanLine = line.trim();
-    
+
     if (cleanLine.startsWith("status:")) {
-      const status = cleanLine.slice(7).trim() as "success" | "error" | "warning";
+      const status = cleanLine.slice(7).trim() as
+        | "success"
+        | "error"
+        | "warning";
       result.status = status;
     } else if (cleanLine.startsWith("bookingId:")) {
       result.bookingId = cleanLine.slice(10).trim();
@@ -390,12 +484,17 @@ const extractBookingResultDetails = (content: string): BookingResultInfo => {
     } else if (cleanLine.toLowerCase() === "items:") {
       isInItemsSection = true;
     } else if (isInItemsSection && cleanLine.includes("(Quantity:")) {
-      // Parse item line like "CRANIAL KIT W/ DRILL SPLINT MODEL (Quantity: 1)"
-      const match = cleanLine.match(/^(.+?)\s*\(Quantity:\s*(\d+)\)$/);
+      // Parse item line like "CRANIAL KIT W/ DRILL SPLINT MODEL (Quantity: 1)" or "ItemName (Quantity: 1) - Not Available"
+      const match = cleanLine.match(/^(.+?)\s*\(Quantity:\s*(\d+)\)(?:\s*-\s*(.+))?$/);
       if (match) {
+        const itemName = match[1].trim();
+        const quantity = parseInt(match[2]);
+        const availability = match[3] ? match[3].trim() : undefined;
+        
         result.items!.push({
-          name: match[1].trim(),
-          quantity: parseInt(match[2]),
+          name: itemName,
+          quantity: quantity,
+          availability: availability,
         });
       }
     } else if (isInItemsSection && cleanLine && !cleanLine.includes(":")) {
@@ -423,3 +522,4 @@ export const removeBookingResultsFromText = (text: string): string => {
 
   return cleaned;
 };
+

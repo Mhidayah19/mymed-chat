@@ -188,7 +188,6 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
    * Private method that replicates the frontend's booking request body generation logic
    */
   private generateBookingRequestBody(template: any, customizations?: any) {
-    
     // Parse surgery date
     let surgeryDate = new Date();
     if (customizations?.surgeryDate) {
@@ -219,12 +218,27 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
     }
 
     // Create surgery schedule (UTC dates to avoid timezone issues)
-    const dayOfUse = new Date(Date.UTC(surgeryDate.getFullYear(), surgeryDate.getMonth(), surgeryDate.getDate()));
+    const dayOfUse = new Date(
+      Date.UTC(
+        surgeryDate.getFullYear(),
+        surgeryDate.getMonth(),
+        surgeryDate.getDate()
+      )
+    );
 
-    const endOfUse = new Date(Date.UTC(surgeryDate.getFullYear(), surgeryDate.getMonth(), surgeryDate.getDate(), 23, 59, 59, 999));
+    const endOfUse = new Date(
+      Date.UTC(
+        surgeryDate.getFullYear(),
+        surgeryDate.getMonth(),
+        surgeryDate.getDate(),
+        23,
+        59,
+        59,
+        999
+      )
+    );
 
     // Only dayOfUse and endOfUse dates needed
-
 
     // Convert equipment name to material ID
     const materialId = template.equipment
@@ -233,15 +247,18 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
       .replace(/[^A-Z0-9-]/g, "");
 
     // Generate booking request body using template items or fallback
-    const items = template.items && template.items.length > 0 
-      ? template.items.map((item: any) => ({
-          quantity: item.quantity || 1,
-          materialId: item.materialId || materialId || "UNKNOWN-EQUIPMENT",
-        }))
-      : [{
-          quantity: 1,
-          materialId: materialId || "UNKNOWN-EQUIPMENT",
-        }];
+    const items =
+      template.items && template.items.length > 0
+        ? template.items.map((item: any) => ({
+            quantity: item.quantity || 1,
+            materialId: item.materialId || materialId || "UNKNOWN-EQUIPMENT",
+          }))
+        : [
+            {
+              quantity: 1,
+              materialId: materialId || "UNKNOWN-EQUIPMENT",
+            },
+          ];
 
     return {
       items,

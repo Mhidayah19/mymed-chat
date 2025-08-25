@@ -144,3 +144,9 @@ dist
 
 src/App.tsx
 src/components/tool-invocation-card/ToolInvocationCard.tsx
+
+# Project specific
+.bmad-core/
+.claude/
+docs/
+CLAUDE.md
