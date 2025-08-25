@@ -25,6 +25,9 @@ interface Template {
   currency?: string;
   simulation?: string | boolean;
   notes?: string;
+  // Add booking-specific fields
+  bookingId?: string;
+  status?: 'success' | 'error' | 'warning';
 }
 
 interface TemplatesData {
@@ -90,7 +93,10 @@ export const TemplatesCard = ({ data }: { data: TemplateCardData }) => {
         surgeryType: recommendedData.requestBody?.surgeryType,
         currency: recommendedData.requestBody?.currency,
         simulation: recommendedData.requestBody?.isSimulation ? 'True' : 'False',
-        notes: recommendedData.requestBody?.notes?.[0]?.noteContent
+        notes: recommendedData.requestBody?.notes?.[0]?.noteContent,
+        // Add booking-specific fields (for createBooking results)
+        bookingId: recommendedData.bookingId,
+        status: recommendedData.status
       };
       return [singleTemplate];
     }
@@ -131,6 +137,17 @@ export const TemplatesCard = ({ data }: { data: TemplateCardData }) => {
               </h3>
               {template.equipment && (
                 <p className="text-gray-600 text-sm mt-1 truncate">{template.equipment}</p>
+              )}
+              {template.bookingId && (
+                <p className="text-xs text-blue-600 mt-1 font-mono">Booking ID: {template.bookingId}</p>
+              )}
+              {template.status && (
+                <p className={`text-xs mt-1 font-medium ${
+                  template.status === 'success' ? 'text-green-600' : 
+                  template.status === 'error' ? 'text-red-600' : 'text-yellow-600'
+                }`}>
+                  Status: {template.status.charAt(0).toUpperCase() + template.status.slice(1)}
+                </p>
               )}
             </div>
           </div>

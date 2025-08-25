@@ -45,18 +45,72 @@ export function ToolInvocationCard({
     return match ? match[1] : toolName;
   };
 
-  // Check if this is a template-related tool and render the specialized component
+  // Check if this is a UI-rendered tool and render the specialized component
   const cleanedToolName = cleanToolName(toolInvocation.toolName);
-  if ((cleanedToolName === "getCachedTemplates" || cleanedToolName === "getRecommendedBooking") && toolInvocation.state === "result") {
+  if ((cleanedToolName === "getCachedTemplates" || cleanedToolName === "getRecommendedBooking" || cleanedToolName === "createBooking") && toolInvocation.state === "result") {
     const result = toolInvocation.result as ToolInvocationResult;
     
     // Parse the result to extract structured data
     let templatesData: any;
     console.log(`Raw result from ${cleanedToolName}:`, JSON.stringify(result, null, 2));
     
-    // Handle getRecommendedBooking - pass data directly to TemplatesCard
+    // Handle getRecommendedBooking - pass data directly to TemplatesCard  
     if (cleanedToolName === "getRecommendedBooking") {
+      console.log('Processing getRecommendedBooking result:', result);
       templatesData = result;
+    }
+    // Handle createBooking - transform MCP result to TemplatesCard format
+    else if (cleanedToolName === "createBooking") {
+      // Parse booking result from MCP tool (likely in content array)
+      let bookingData: any = {};
+      
+      if (result && typeof result === 'object') {
+        if ('content' in result && Array.isArray(result.content)) {
+          const textContent = result.content.find((c: any) => c.type === 'text')?.text;
+          if (textContent) {
+            try {
+              bookingData = JSON.parse(textContent);
+            } catch {
+              // If not JSON, treat as raw booking data
+              bookingData = result;
+            }
+          }
+        } else {
+          bookingData = result;
+        }
+      }
+      
+      // Extract booking data from nested structure
+      const booking = bookingData.booking || bookingData;
+      
+      // Transform createBooking result to TemplatesCard format
+      templatesData = {
+        success: bookingData.success !== false,
+        customer: booking.customerName || `Customer ${booking.customer}`,
+        customerId: booking.customer,
+        templateUsed: {
+          equipment: booking.equipmentDescription || "Medical Equipment",
+          surgeon: booking.surgeon,
+          salesrep: booking.salesRepName || "Sales Representative"
+        },
+        requestBody: {
+          items: booking.items?.map((item: any) => ({
+            materialId: item.materialId,
+            name: item.description,
+            quantity: parseInt(item.quantity) || 1
+          })) || [],
+          currency: booking.currency,
+          reservationType: booking.reservationType,
+          surgeryType: booking.surgeryType,
+          dayOfUse: booking.dayOfUse,
+          isSimulation: booking.isSimulation,
+          notes: booking.notes?.map((note: any) => ({ noteContent: note.noteContent })) || []
+        },
+        confidence: 100, // Booking results are 100% confident
+        // Add booking-specific fields
+        bookingId: booking.bookingId,
+        status: bookingData.success ? 'success' : 'error'
+      };
     }
     // Handle getCachedTemplates - transform to expected format
     else if (result && typeof result === 'object') {

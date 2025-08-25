@@ -337,7 +337,7 @@ export class Chat extends AIChatAgent<Env> {
           model,
           system: `You are a helpful assistant for MyMediset medical equipment booking system. You can analyze images, manage bookings, and help with various tasks.
           
-          CRITICAL INSTRUCTION: When you call getCachedTemplates or getRecommendedBooking tools, do not generate ANY text content. These tools will display custom UI components that contain all necessary information. Your response should contain ONLY the tool call, no additional text.
+          CRITICAL INSTRUCTION: When you call getCachedTemplates, getRecommendedBooking, or createBooking tools, do not generate ANY text content. These tools will display custom UI components that contain all necessary information. Your response should contain ONLY the tool call, no additional text.
 
           ## Current Context
           Today's Date: ${new Date().toLocaleDateString("en-US", {
@@ -388,10 +388,10 @@ export class Chat extends AIChatAgent<Env> {
           \`\`\`
           
           
-          ### For Template Operations (getCachedTemplates and getRecommendedBooking)
-          When user asks for templates:
-          1. Call getCachedTemplates or getRecommendedBooking tool
-          2. After tool execution, respond with ONLY: "Template displayed above." or "Templates displayed above."
+          ### For UI Tool Operations (getCachedTemplates, getRecommendedBooking, createBooking)
+          When using these UI tools:
+          1. Call the tool (getCachedTemplates, getRecommendedBooking, or createBooking)
+          2. After tool execution, respond with ONLY: "Template displayed above.", "Templates displayed above.", or "Booking result displayed above."
           3. Do not provide any additional explanation or text
           
           ### For All Other Tool Operations
@@ -444,8 +444,7 @@ export class Chat extends AIChatAgent<Env> {
           - For booking creation, ALWAYS show the template first before creating
           - Be helpful in explaining booking details and offering modifications
           - For general image analysis or conversation, respond directly using your built-in capabilities
-          - After booking operations (createBooking, updateBooking), ALWAYS use the booking-result markdown format
-          - CRITICAL: When using getCachedTemplates or getRecommendedBooking, ONLY call the tool and provide NO additional text. The tool result IS the complete response.
+          - CRITICAL: When using getCachedTemplates, getRecommendedBooking, or createBooking, ONLY call the tool and provide NO additional text. The tool result IS the complete response.
           - After all other tool operations (analytics), use the tool-result markdown format`,
           messages: processedMessages,
           tools: allTools,
