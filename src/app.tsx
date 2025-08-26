@@ -30,11 +30,6 @@ import {
   removeBookingsFromText,
 } from "@/components/booking/ChatBookingCard";
 import {
-  BookingResultCard,
-  parseBookingResultInfo,
-  removeBookingResultsFromText,
-} from "@/components/booking/BookingResultCard";
-import {
   GenericToolResultCard,
   parseToolResults,
   removeToolResultsFromText,
@@ -406,7 +401,7 @@ export default function Chat() {
               <div className="flex items-center">
                 <img src={mymLogo} alt="MYM Logo" className="h-5" />
                 <span className="ml-2 text-lg font-semibold truncate bg-gradient-to-r from-[#00D4FF] to-[#8B5CF6] bg-clip-text text-transparent">
-                  Mymediset Agent
+                  mymediset Agent
                 </span>
               </div>
             </div>
@@ -554,20 +549,12 @@ export default function Chat() {
                                         >
                                           {/* Process all card types */}
                                           {(() => {
-                                            // Parse booking results first
-                                            const bookingResults =
-                                              parseBookingResultInfo(part.text);
-                                            let remainingText =
-                                              removeBookingResultsFromText(
-                                                part.text
-                                              );
-
                                             // Parse generic tool results
                                             const toolResults = parseToolResults(
-                                              remainingText
+                                              part.text
                                             );
-                                            remainingText = removeToolResultsFromText(
-                                              remainingText
+                                            let remainingText = removeToolResultsFromText(
+                                              part.text
                                             );
 
                                             // Parse regular bookings from remaining text
@@ -622,18 +609,6 @@ export default function Chat() {
                                                   }}
                                                 />
 
-                                                {bookingResults.length > 0 && (
-                                                  <div className="mt-3">
-                                                    {bookingResults.map(
-                                                      (result, idx) => (
-                                                        <BookingResultCard
-                                                          key={idx}
-                                                          result={result}
-                                                        />
-                                                      )
-                                                    )}
-                                                  </div>
-                                                )}
 
                                                 {toolResults.length > 0 && (
                                                   <div className="mt-3">

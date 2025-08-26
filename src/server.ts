@@ -45,6 +45,66 @@ export class Chat extends AIChatAgent<Env> {
     }
   }
 
+  // Create filtered MCP tools that sanitize arguments for booking operations
+  private createFilteredMcpTools(rawMcpTools: any) {
+    const filteredTools: any = {};
+    
+    // Fields that cause issues with the MCP booking API
+    const problematicFields = ['salesrep', 'equipmentDescription'];
+    
+    for (const [toolName, tool] of Object.entries(rawMcpTools)) {
+      if (typeof tool === 'object' && tool !== null && 'execute' in tool && 
+          (toolName.includes('createBooking') || toolName.includes('updateBooking'))) {
+        // Create a wrapper for booking tools that filters arguments
+        const originalTool = tool as any;
+        filteredTools[toolName] = {
+          ...originalTool,
+          execute: async (args: any) => {
+            console.log('🔧 Original booking args:', JSON.stringify(args, null, 2));
+            
+            // Store original args for UI display
+            const originalArgs = { ...args };
+            
+            // Filter out problematic fields for MCP API call
+            const filteredArgs = { ...args };
+            problematicFields.forEach(field => {
+              if (field in filteredArgs) {
+                console.log(`🗑️ Filtering out ${field} from MCP API call`);
+                delete filteredArgs[field];
+              }
+            });
+            
+            console.log('✅ Filtered booking args:', JSON.stringify(filteredArgs, null, 2));
+            
+            try {
+              // Call original tool with filtered args
+              const result = await originalTool.execute(filteredArgs);
+              
+              // Attach original args to result for UI component access
+              if (result && typeof result === 'object') {
+                result._originalArgs = originalArgs;
+              }
+              
+              return result;
+            } catch (error) {
+              console.error('❌ Error in filtered MCP tool execution:', error);
+              // Return error with original args attached for UI context
+              return {
+                error: error instanceof Error ? error.message : 'Unknown error',
+                _originalArgs: originalArgs
+              };
+            }
+          }
+        };
+      } else {
+        // Non-booking tools pass through unchanged
+        filteredTools[toolName] = tool;
+      }
+    }
+    
+    return filteredTools;
+  }
+
   // Override onError to handle server errors gracefully
   onError(connectionOrError: any, error?: unknown) {
     if (arguments.length === 1) {
@@ -118,7 +178,10 @@ export class Chat extends AIChatAgent<Env> {
     _options?: { abortSignal?: AbortSignal }
   ) {
     // Collect and filter MCP tools
-    const mcpTools = this.mcp.unstable_getAITools();
+    const rawMcpTools = this.mcp.unstable_getAITools();
+    
+    // Create filtered MCP tools that remove problematic fields for booking operations
+    const mcpTools = this.createFilteredMcpTools(rawMcpTools);
 
     // Collect all prompts from MCP servers
     const mcpPrompts = this.mcp.listPrompts();
@@ -154,7 +217,7 @@ export class Chat extends AIChatAgent<Env> {
 
       getRecommendedBooking: {
         description:
-          "Get a complete booking request body template for a customer based on their usual booking patterns, or find templates by surgeon. Use this when user asks to create a booking for a specific customer or surgeon. IMPORTANT: This tool renders a complete UI response - do not generate any additional text after calling this tool.",
+          "Get a complete booking request body template for a customer based on their usual booking patterns, or find templates by surgeon. Use this when user asks to create a booking for a specific customer or surgeon. IMPORTANT: This tool renders a RecommendedBookingCard UI component - do not generate any additional text after calling this tool.",
         parameters: z.object({
           customerName: z
             .string()
@@ -192,7 +255,7 @@ export class Chat extends AIChatAgent<Env> {
               this.env.BookingAnalysisAgent,
               AGENT_NAMES.MAIN_ANALYZER
             );
-            return await (bookingAgent as any).generateBookingRequest(
+            const result = await (bookingAgent as any).generateBookingRequest(
               args.customerName,
               {
                 surgeon: args.surgeon,
@@ -201,6 +264,14 @@ export class Chat extends AIChatAgent<Env> {
                 isDraft: args.isDraft,
               }
             );
+            
+            // Return structured data for RecommendedBookingCard component
+            return {
+              type: 'recommended-booking',
+              ...result,
+              // Special marker to indicate this is a complete UI response
+              _complete_ui_response: true
+            };
           } catch (error) {
             console.error(
               "Error calling BookingAnalysisAgent.generateBookingRequest:",
@@ -286,7 +357,7 @@ export class Chat extends AIChatAgent<Env> {
       },
       getCachedTemplates: {
         description:
-          "Get the cached booking templates that were previously generated. IMPORTANT: This tool renders a complete UI response - do not generate any additional text after calling this tool.",
+          "Get the cached booking templates that were previously generated. IMPORTANT: This tool renders a CachedTemplatesCard UI component - do not generate any additional text after calling this tool.",
         parameters: z.object({}),
         execute: async () => {
           try {
@@ -296,7 +367,7 @@ export class Chat extends AIChatAgent<Env> {
             );
             const templates = await (bookingAgent as any).getCachedTemplates();
             
-            // Return structured data for Generative UI - this IS the complete response
+            // Return structured data for CachedTemplatesCard component
             return {
               type: 'cached-templates',
               ...templates,
@@ -337,7 +408,11 @@ export class Chat extends AIChatAgent<Env> {
           model,
           system: `You are a helpful assistant for MyMediset medical equipment booking system. You can analyze images, manage bookings, and help with various tasks.
           
-          CRITICAL INSTRUCTION: When you call getCachedTemplates, getRecommendedBooking, or createBooking tools, do not generate ANY text content. These tools will display custom UI components that contain all necessary information. Your response should contain ONLY the tool call, no additional text.
+          CRITICAL INSTRUCTION: When you call getCachedTemplates, getRecommendedBooking, or createBooking tools, do not generate ANY text content. These tools will display specific UI components automatically:
+          - getCachedTemplates: displays CachedTemplatesCard component for multiple booking templates grid
+          - getRecommendedBooking: displays RecommendedBookingCard component for single booking recommendation
+          - createBooking/updateBooking: displays BookingOperationResultCard component for booking operation results
+          Your response should contain ONLY the tool call, no additional text or explanations.
 
           ## Current Context
           Today's Date: ${new Date().toLocaleDateString("en-US", {
@@ -354,45 +429,22 @@ export class Chat extends AIChatAgent<Env> {
           3. After getRecommendedBooking displays the template, ask if they want to modify anything (times, dates, equipment) before creating the booking
           5. If user specify the date of surgery like tomorrow,next week,next month or next year. Do interpret the date and set the date in the requestBody.
           6. If they confirm or make modifications, use the appropriate MCP createBooking tool with the COMPLETE requestBody from getRecommendedBooking response
-          7. CRITICAL: Pass the EXACT requestBody object from getRecommendedBooking response directly to createBooking - do not add, remove, or modify ANY fields
+          7. CRITICAL: Pass the EXACT requestBody object from getRecommendedBooking response directly to createBooking - do not add, remove, or modify ANY fields  
           8. NEVER create your own request object - ALWAYS use the complete requestBody from getRecommendedBooking AS-IS
+          9. IMPORTANT: Store the customer name and sales rep from getRecommendedBooking template data to enrich the createBooking result display
           9. DO NOT add any additional fields like poNumber, telephone, bookingStatus, releaseDate, estimatedValue - use ONLY what's in the requestBody
           10. The requestBody from getRecommendedBooking includes ALL required fields: customerId, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
           11. Proceed with simulation true and return the booking creation result to the user, do include status of isAvaliable 
           12. Inform customer about isAvailable and would like to proceed with booking simulation false?
-          13. IMPORTANT: After any booking operation (create/update), display results in a structured booking-result block format
+          13. IMPORTANT: After booking operations (create/update), the BookingOperationResultCard component will display automatically
 
-          ## Structured Response Format
-          
-          ### For Booking Operations
-          For booking operation results, always use this comprehensive markdown format:
-          \`\`\`booking-result
-          status: success|error|warning
-          bookingId: [generated booking ID]
-          customer: [customer name]
-          customerId: [customer ID number]
-          message: [success/error message]
-          equipment: [equipment description]
-          surgeon: [surgeon name]
-          salesRep: [sales representative name]
-          surgeryDate: [surgery date]
-          surgeryType: [OR/etc]
-          currency: [EUR/USD/etc]
-          reservationType: [01/02/etc]
-          simulation: [True/False]
-          availability: [availability status]
-          items:
-          [Item Name] (Quantity: [number])
-          [Item Name] (Quantity: [number])
-          notes: [additional notes]
-          \`\`\`
-          
-          
-          ### For UI Tool Operations (getCachedTemplates, getRecommendedBooking, createBooking)
-          When using these UI tools:
-          1. Call the tool (getCachedTemplates, getRecommendedBooking, or createBooking)
-          2. After tool execution, respond with ONLY: "Template displayed above.", "Templates displayed above.", or "Booking result displayed above."
-          3. Do not provide any additional explanation or text
+          ## UI Tool Operations (getCachedTemplates, getRecommendedBooking, createBooking)
+          These tools automatically render specialized UI components:
+          1. getCachedTemplates: Renders CachedTemplatesCard for multiple templates grid view
+          2. getRecommendedBooking: Renders RecommendedBookingCard for single booking recommendation  
+          3. createBooking/updateBooking: Renders BookingOperationResultCard for booking operation results (will use template data from conversation context for customer/sales rep names)
+          4. After calling these tools, do NOT generate any additional text - the UI components are the complete response
+          5. The components automatically handle all data parsing and display
           
           ### For All Other Tool Operations
           For other tool execution (analytics, etc.), use this format:
@@ -417,11 +469,11 @@ export class Chat extends AIChatAgent<Env> {
           \`\`\`
 
           ## Available Tools
-          - getRecommendedBooking: Fetches customer's booking template with customizations (date, time, notes) - displays as UI component
-          - getCachedTemplates: Shows all cached booking templates - displays as UI component  
+          - getRecommendedBooking: Fetches customer's booking template with customizations (date, time, notes) - displays RecommendedBookingCard component
+          - getCachedTemplates: Shows all cached booking templates - displays CachedTemplatesCard component
           - generateBookingTemplates: Creates templates from historical booking analysis
           - executeBookingAnalysis: Analyzes booking data from MCP servers
-          - MCP tools: Various tools from connected servers (createBooking, getBooking, etc.)
+          - MCP tools: Various tools from connected servers (createBooking displays BookingOperationResultCard, getBooking, etc.)
 
           ## Example Interactions
           User: "create John's usual booking at tomorrow"
@@ -444,8 +496,9 @@ export class Chat extends AIChatAgent<Env> {
           - For booking creation, ALWAYS show the template first before creating
           - Be helpful in explaining booking details and offering modifications
           - For general image analysis or conversation, respond directly using your built-in capabilities
-          - CRITICAL: When using getCachedTemplates, getRecommendedBooking, or createBooking, ONLY call the tool and provide NO additional text. The tool result IS the complete response.
-          - After all other tool operations (analytics), use the tool-result markdown format`,
+          - CRITICAL: When using getCachedTemplates (CachedTemplatesCard), getRecommendedBooking (RecommendedBookingCard), or createBooking (BookingOperationResultCard), ONLY call the tool and provide NO additional text. The tool result IS the complete response.
+          - For analytics and other non-UI tools, use the tool-result markdown format
+          - CRITICAL: Never generate text after getCachedTemplates, getRecommendedBooking, or createBooking - the UI components handle everything automatically`,
           messages: processedMessages,
           tools: allTools,
           experimental_telemetry: {

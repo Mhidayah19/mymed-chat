@@ -4,15 +4,14 @@ import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { APPROVAL } from "@/shared";
-import { TemplatesCard } from "../TemplatesCard";
-import type { BookingTemplate } from "../../types";
+import { 
+  CachedTemplatesCard, 
+  RecommendedBookingCard, 
+  BookingOperationResultCard
+} from "../booking";
 import type { 
-  BookingTemplateItem,
-  TransformedTemplate,
-  TransformedTemplatesData,
   ContentResult,
-  ToolInvocationResult,
-  BookingTemplatesResult
+  ToolInvocationResult
 } from "@/types/ui";
 
 interface ToolInvocation {
@@ -39,166 +38,61 @@ export function ToolInvocationCard({
 }: ToolInvocationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Clean up MCP tool names by removing the prefix (e.g., "0TtDG-wD_getConsumptionRequests" -> "getConsumptionRequests")
+  // Clean up MCP tool names by removing multiple prefixes (e.g., "qgu_zEu9_createBooking" -> "createBooking")
   const cleanToolName = (toolName: string) => {
-    const match = toolName.match(/^[A-Za-z0-9\-]+_(.+)$/);
-    return match ? match[1] : toolName;
+    // Keep removing prefixes until we get to the actual tool name
+    let cleaned = toolName;
+    while (true) {
+      const match = cleaned.match(/^[A-Za-z0-9\-]+_(.+)$/);
+      if (match && match[1]) {
+        cleaned = match[1];
+      } else {
+        break;
+      }
+    }
+    return cleaned;
   };
 
   // Check if this is a UI-rendered tool and render the specialized component
   const cleanedToolName = cleanToolName(toolInvocation.toolName);
-  if ((cleanedToolName === "getCachedTemplates" || cleanedToolName === "getRecommendedBooking" || cleanedToolName === "createBooking") && toolInvocation.state === "result") {
+  
+  // Debug logging
+  if (toolInvocation.toolName.includes("createBooking") || toolInvocation.toolName.includes("updateBooking")) {
+    console.log(`Tool name: "${toolInvocation.toolName}" -> cleaned: "${cleanedToolName}"`);
+    console.log(`State: ${toolInvocation.state}`);
+  }
+  
+  if ((cleanedToolName === "getCachedTemplates" || cleanedToolName === "getRecommendedBooking" || cleanedToolName === "createBooking" || cleanedToolName === "updateBooking") && toolInvocation.state === "result") {
     const result = toolInvocation.result as ToolInvocationResult;
     
-    // Parse the result to extract structured data
-    let templatesData: any;
-    console.log(`Raw result from ${cleanedToolName}:`, JSON.stringify(result, null, 2));
-    
-    // Handle getRecommendedBooking - pass data directly to TemplatesCard  
+    // Handle getRecommendedBooking - let component handle raw data
     if (cleanedToolName === "getRecommendedBooking") {
-      console.log('Processing getRecommendedBooking result:', result);
-      templatesData = result;
-    }
-    // Handle createBooking - transform MCP result to TemplatesCard format
-    else if (cleanedToolName === "createBooking") {
-      // Parse booking result from MCP tool (likely in content array)
-      let bookingData: any = {};
-      
-      if (result && typeof result === 'object') {
-        if ('content' in result && Array.isArray(result.content)) {
-          const textContent = result.content.find((c: any) => c.type === 'text')?.text;
-          if (textContent) {
-            try {
-              bookingData = JSON.parse(textContent);
-            } catch {
-              // If not JSON, treat as raw booking data
-              bookingData = result;
-            }
-          }
-        } else {
-          bookingData = result;
-        }
-      }
-      
-      // Extract booking data from nested structure
-      const booking = bookingData.booking || bookingData;
-      
-      // Transform createBooking result to TemplatesCard format
-      templatesData = {
-        success: bookingData.success !== false,
-        customer: booking.customerName || `Customer ${booking.customer}`,
-        customerId: booking.customer,
-        templateUsed: {
-          equipment: booking.equipmentDescription || "Medical Equipment",
-          surgeon: booking.surgeon,
-          salesrep: booking.salesRepName || "Sales Representative"
-        },
-        requestBody: {
-          items: booking.items?.map((item: any) => ({
-            materialId: item.materialId,
-            name: item.description,
-            quantity: parseInt(item.quantity) || 1
-          })) || [],
-          currency: booking.currency,
-          reservationType: booking.reservationType,
-          surgeryType: booking.surgeryType,
-          dayOfUse: booking.dayOfUse,
-          isSimulation: booking.isSimulation,
-          notes: booking.notes?.map((note: any) => ({ noteContent: note.noteContent })) || []
-        },
-        confidence: 100, // Booking results are 100% confident
-        // Add booking-specific fields
-        bookingId: booking.bookingId,
-        status: bookingData.success ? 'success' : 'error'
-      };
-    }
-    // Handle getCachedTemplates - transform to expected format
-    else if (result && typeof result === 'object') {
-      const isBookingResult = (r: ToolInvocationResult): r is BookingTemplatesResult => 
-        'success' in r && 'templates' in r;
-
-      if (isBookingResult(result) && result.success) {
-        // Transform the data to match TemplatesCard's expected format
-        const transformedTemplates = result.templates?.map((template: BookingTemplate): TransformedTemplate => ({
-          customer: template.customer || template.customerId || 'Unknown Customer',
-          customerId: template.customerId || '',
-          surgeon: template.surgeon || 'Unknown Surgeon',
-          salesRep: template.salesrep || 'Unknown Sales Rep',
-          frequency: template.frequency || 0,
-          totalBookings: template.totalBookings || 0,
-          equipment: template.equipment || template.items?.[0]?.materialId || 'No specific equipment',
-          items: template.items?.map((item: BookingTemplateItem) => ({
-            materialId: item.materialId,
-            name: item.name || item.materialId,
-            quantity: item.quantity || 1,
-            description: item.description,
-            availability: item.availability
-          })) || [],
-          reservationType: template.reservationType || '01',
-          confidence: template.confidence,
-          insights: template.insights
-        })) || [];
-
-        templatesData = {
-          type: 'templates',
-          templates: transformedTemplates,
-          count: transformedTemplates.length,
-          status: result.success ? 'success' : 'error'
-        };
-      } else if ('content' in result && result.content && Array.isArray(result.content)) {
-        // Try to parse from content array
-        const textContent = result.content.find((c) => c.type === 'text')?.text;
-        if (textContent) {
-          try {
-            const parsed = JSON.parse(textContent) as ToolInvocationResult;
-            if (isBookingResult(parsed) && parsed.success) {
-              const transformedTemplates = parsed.templates?.map((template: BookingTemplate): TransformedTemplate => ({
-                customer: template.customer || template.customerId || 'Unknown Customer',
-                customerId: template.customerId || '',
-                surgeon: template.surgeon || 'Unknown Surgeon',
-                salesRep: template.salesrep || 'Unknown Sales Rep',
-                frequency: template.frequency || 0,
-                totalBookings: template.totalBookings || 0,
-                equipment: template.equipment || template.items?.[0]?.materialId || 'No specific equipment',
-                items: template.items?.map((item: BookingTemplateItem) => ({
-                  materialId: item.materialId,
-                  name: item.name || item.materialId,
-                  quantity: item.quantity || 1,
-                  description: item.description,
-                  availability: item.availability
-                })) || [],
-                reservationType: template.reservationType || '01',
-                confidence: template.confidence,
-                insights: template.insights
-              })) || [];
-
-              templatesData = {
-                type: 'templates',
-                templates: transformedTemplates,
-                count: transformedTemplates.length,
-                status: parsed.success ? 'success' : 'error'
-              };
-            }
-          } catch {
-            // If parsing fails, create fallback structure
-            templatesData = {
-              type: 'templates',
-              templates: [],
-              count: 0,
-              status: 'error'
-            };
-          }
-        }
-      }
-    }
-    
-    // Render TemplatesCard if we have valid data
-    console.log('Final templatesData for TemplatesCard:', JSON.stringify(templatesData, null, 2));
-    if (templatesData) {
       return (
         <div className="w-full">
-          <TemplatesCard data={templatesData} />
-          {/* This component IS the complete response - no additional text needed */}
+          <RecommendedBookingCard rawResult={result} />
+        </div>
+      );
+    }
+    
+    // Handle createBooking/updateBooking - let component handle raw data
+    else if (cleanedToolName === "createBooking" || cleanedToolName === "updateBooking") {
+      console.log(`Raw ${cleanedToolName} response body:`, JSON.stringify(result, null, 2));
+      console.log(`${cleanedToolName} request args:`, JSON.stringify(toolInvocation.args, null, 2));
+      return (
+        <div className="w-full">
+          <BookingOperationResultCard 
+            rawResult={result} 
+            requestArgs={toolInvocation.args}
+          />
+        </div>
+      );
+    }
+    
+    // Handle getCachedTemplates - let component handle raw data
+    else if (cleanedToolName === "getCachedTemplates") {
+      return (
+        <div className="w-full">
+          <CachedTemplatesCard rawResult={result} />
         </div>
       );
     }

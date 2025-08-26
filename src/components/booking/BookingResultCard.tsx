@@ -1,525 +1,304 @@
-import { CheckCircle, XCircle, Calendar, Clock } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { CheckCircle, XCircle, Warning, MapPin, Stethoscope, User } from "@phosphor-icons/react";
 
-export interface BookingResultInfo {
-  status: "success" | "error" | "warning";
+// Interface for createBooking/updateBooking results
+export interface BookingResult {
+  status: 'success' | 'error' | 'warning';
   bookingId?: string;
-  customer?: string;
-  customerId?: string;
+  customer: string;
+  customerId?: string | number;
   message: string;
-  surgeryDate?: string;
-  surgeryTime?: string;
-  availability?: string;
-  notes?: string;
   equipment?: string;
   surgeon?: string;
   salesRep?: string;
+  surgeryDate?: string;
+  surgeryType?: string;
   currency?: string;
   reservationType?: string;
-  surgeryType?: string;
-  simulation?: string;
-  isLoading?: boolean;
+  simulation?: string | boolean;
+  availability?: string;
   items?: Array<{
-    name: string;
+    name?: string;
     quantity: number;
     materialId?: string;
+    description?: string;
     availability?: string;
   }>;
+  notes?: string;
+  error?: string;
 }
 
-// Typing animation CSS class (reusing from ChatBookingCard)
-export const typingAnimationClass = `
-  @keyframes typing {
-    from { width: 0 }
-    to { width: 100% }
-  }
-
-  @keyframes blink {
-    from, to { border-color: transparent }
-    50% { border-color: currentColor }
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-  }
-
-  .typing-cursor {
-    border-right: 2px solid;
-    animation: blink 1s step-end infinite;
-  }
-
-  .typing-animation {
-    will-change: width;
-    display: inline-block;
-    overflow: hidden;
-    white-space: nowrap;
-    animation: typing 1.5s steps(30, end);
-  }
-
-  .fade-in {
-    will-change: opacity, transform;
-    opacity: 0;
-    animation: fadeIn 0.5s ease-out forwards;
-  }
-
-  .shimmer {
-    background: linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.6) 50%,
-      rgba(255, 255, 255, 0) 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 2s infinite linear;
-  }
-
-  .delay-100 { animation-delay: 100ms; }
-  .delay-200 { animation-delay: 200ms; }
-  .delay-300 { animation-delay: 300ms; }
-  .delay-400 { animation-delay: 400ms; }
-  .delay-500 { animation-delay: 500ms; }
-`;
-
-export const BookingResultCard = ({
-  result,
-}: {
-  result: BookingResultInfo;
-}) => {
-  const [animationStage, setAnimationStage] = useState(0);
-  const [showTypingCursor, setShowTypingCursor] = useState(true);
-
-  // Add animation styles to head on mount
-  useEffect(() => {
-    const styleElement = document.createElement("style");
-    styleElement.innerHTML = typingAnimationClass;
-    document.head.appendChild(styleElement);
-
-    return () => {
-      document.head.removeChild(styleElement);
-    };
-  }, []);
-
-  // Sequential animation for result card fields
-  useEffect(() => {
-    if (animationStage < 4) {
-      const timer = setTimeout(() => {
-        setAnimationStage((prev) => prev + 1);
-      }, 300);
-
-      return () => clearTimeout(timer);
+// Parser function to extract BookingResult from raw tool result
+const parseBookingResult = (rawResult: any, requestArgs?: any): BookingResult => {
+  let bookingResultData: any = {};
+  
+  if (rawResult && typeof rawResult === 'object') {
+    if ('content' in rawResult && Array.isArray(rawResult.content)) {
+      const textContent = rawResult.content.find((c: any) => c.type === 'text')?.text;
+      if (textContent) {
+        try {
+          bookingResultData = JSON.parse(textContent);
+        } catch {
+          bookingResultData = rawResult;
+        }
+      }
     } else {
-      const timer = setTimeout(() => {
-        setShowTypingCursor(false);
-      }, 500);
-
-      return () => clearTimeout(timer);
+      bookingResultData = rawResult;
     }
-  }, [animationStage]);
+  }
+  
+  // Extract booking data from nested structure
+  const booking = bookingResultData.booking || bookingResultData;
+  
+  // Extract request body data for enriching display - check for original args first
+  const originalArgs = rawResult?._originalArgs || requestArgs || {};
+  const requestBody = originalArgs;
+  console.log('📋 BookingOperationResultCard - Request args:', JSON.stringify(requestBody, null, 2));
+  console.log('📋 BookingOperationResultCard - Has original args:', !!rawResult?._originalArgs);
+  
+  // Transform to BookingResult format
+  const status: 'success' | 'error' | 'warning' = bookingResultData.success !== false ? 'success' : 'error';
+  
+  // Extract customer name - prioritize request args, then booking data
+  let customerName = '';
+  let customerId = undefined;
+  
+  if (requestBody.customerName && typeof requestBody.customerName === 'string' && requestBody.customerName.trim() !== '') {
+    customerName = requestBody.customerName.trim();
+    customerId = requestBody.customerId || requestBody.customer;
+  } else if (booking.customerName && booking.customerName.trim() !== '') {
+    customerName = booking.customerName.trim();
+  } else {
+    customerName = `Customer ${booking.customer || requestBody.customer}`;
+  }
+  
+  // Extract booking ID from multiple possible locations in the result
+  let bookingId = undefined;
+  
+  // Try different paths where booking ID might be stored
+  if (booking.bookingId && booking.bookingId !== '0000000000') {
+    bookingId = booking.bookingId;
+  } else if (booking.ID && booking.ID !== '0000000000') {
+    bookingId = booking.ID;
+  } else if (booking.id && booking.id !== '0000000000') {
+    bookingId = booking.id;
+  } else if (bookingResultData.bookingId && bookingResultData.bookingId !== '0000000000') {
+    bookingId = bookingResultData.bookingId;
+  } else if (bookingResultData.ID && bookingResultData.ID !== '0000000000') {
+    bookingId = bookingResultData.ID;
+  } else if (bookingResultData.id && bookingResultData.id !== '0000000000') {
+    bookingId = bookingResultData.id;
+  }
+  
+  console.log('📋 Extracted booking ID:', bookingId);
 
-  // Status icon and colors - MyMediset Design System
-  const getStatusConfig = () => {
-    switch (result.status) {
-      case "success":
-        return {
-          icon: <CheckCircle size={20} />,
-          iconColor: "text-[#10b981]", // Medical analytics performance green
-          bgColor: "bg-white", // Clean white background
-          borderColor: "border-[#10b981]/20",
-          titleColor: "text-[#166534]", // Dark green for text
-          shadowColor: "shadow-[0_4px_6px_-1px_rgba(16,185,129,0.1)]",
-        };
-      case "error":
-        return {
-          icon: <XCircle size={20} />,
-          iconColor: "text-[#ef4444]", // Medical analytics critical red
-          bgColor: "bg-gradient-to-br from-[#fef2f2] to-[#fee2e2]", // Light red gradient
-          borderColor: "border-[#ef4444]/20",
-          titleColor: "text-[#991b1b]", // Dark red for text
-          shadowColor: "shadow-[0_4px_6px_-1px_rgba(239,68,68,0.1)]",
-        };
+  return {
+    status,
+    bookingId: bookingId,
+    customer: customerName,
+    customerId: customerId,
+    message: bookingResultData.success 
+      ? `Booking created successfully${bookingId ? ` (ID: ${bookingId})` : ''}` 
+      : 'Failed to create booking',
+    equipment: requestBody.equipmentDescription || booking.description || booking.equipmentDescription || "Medical Equipment",
+    surgeon: requestBody.surgeryDescription || booking.surgeryDescription || booking.surgeon || "No specific surgeon",
+    salesRep: requestBody.salesrep || "Not specified", // Extract from original args that include salesrep
+    surgeryDate: requestBody.dayOfUse ? new Date(requestBody.dayOfUse).toLocaleDateString() : (booking.dayOfUse ? new Date(booking.dayOfUse).toLocaleDateString() : undefined),
+    surgeryType: requestBody.surgeryType || booking.surgeryType,
+    currency: requestBody.currency || booking.currency,
+    reservationType: requestBody.reservationType || booking.reservationType,
+    simulation: requestBody.isSimulation !== undefined ? requestBody.isSimulation : booking.isSimulation,
+    items: requestBody.items?.map((item: any) => ({
+      name: item.description || item.materialId,
+      materialId: item.materialId,
+      quantity: parseInt(item.quantity) || 1
+    })) || booking.items?.map((item: any) => ({
+      name: item.description || item.materialId,
+      materialId: item.materialId,
+      quantity: parseInt(item.quantity) || 1
+    })) || [],
+    notes: requestBody.notes?.[0]?.noteContent || booking.notes?.[0]?.noteContent,
+    error: bookingResultData.success === false ? bookingResultData.error || 'Unknown error' : undefined
+  };
+};
+
+// Component that accepts either parsed or raw data
+export const BookingOperationResultCard = ({ 
+  data, 
+  rawResult,
+  requestArgs 
+}: { 
+  data?: BookingResult;
+  rawResult?: any;
+  requestArgs?: any;
+}) => {
+  // Parse raw result if provided, otherwise use parsed data
+  const bookingResult = rawResult ? parseBookingResult(rawResult, requestArgs) : data;
+  
+  if (!bookingResult) {
+    return <div>No booking result data available</div>;
+  }
+
+  const getStatusIcon = () => {
+    switch (bookingResult.status) {
+      case 'success':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'error':
+        return <XCircle className="w-4 h-4" />;
+      case 'warning':
+        return <Warning className="w-4 h-4" />;
       default:
-        return {
-          icon: <Clock size={20} />,
-          iconColor: "text-[#f59e0b]", // Medical analytics warning amber
-          bgColor: "bg-gradient-to-br from-[#fffbeb] to-[#fef3c7]", // Light amber gradient
-          borderColor: "border-[#f59e0b]/20",
-          titleColor: "text-[#92400e]", // Dark amber for text
-          shadowColor: "shadow-[0_4px_6px_-1px_rgba(245,158,11,0.1)]",
-        };
+        return <CheckCircle className="w-4 h-4" />;
     }
   };
 
-  const statusConfig = getStatusConfig();
-
   return (
-    <div 
-      role="article"
-      aria-label={`Booking ${result.bookingId || ''} - ${result.status} status`}
-      className="my-4 rounded-[20px] p-0.5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg focus-within:scale-[1.02] focus-within:shadow-lg" 
-      style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}
-      tabIndex={0}
-    >
-      <div
-        className={`
-          ${statusConfig.bgColor} 
-          backdrop-blur-md backdrop-filter 
-          rounded-[20px]
-          ${statusConfig.shadowColor}
-          overflow-hidden
-        `}
-      >
-        <div className="p-6">
-          {result.isLoading ? (
-            <div className="space-y-4" aria-label="Loading booking details">
-              <div className="flex items-start gap-4">
-                <div className="w-5 h-5 rounded-full bg-gray-200 shimmer"></div>
-                <div className="flex-1">
-                  <div className="h-6 bg-gray-200 rounded w-3/4 shimmer"></div>
-                </div>
+    <div className="my-4">
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col">
+        {/* Header with customer name - matching CachedTemplatesCard style */}
+        <div className="flex items-start gap-2 mb-3">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+            bookingResult.status === 'success' ? 'bg-green-50' : 
+            bookingResult.status === 'error' ? 'bg-red-50' : 'bg-yellow-50'
+          }`}>
+            <div className={`${
+              bookingResult.status === 'success' ? 'text-green-600' : 
+              bookingResult.status === 'error' ? 'text-red-600' : 'text-yellow-600'
+            }`}>
+              {getStatusIcon()}
+            </div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-lg text-gray-900 leading-tight truncate">
+                  {bookingResult.customer}{bookingResult.customerId && ` (${bookingResult.customerId})`}
+                </h3>
+                {bookingResult.equipment && (
+                  <p className="text-gray-600 text-sm mt-1 truncate">{bookingResult.equipment}</p>
+                )}
               </div>
-              <div className="space-y-3">
-                <div className="h-12 bg-gray-200 rounded shimmer"></div>
-                <div className="h-24 bg-gray-200 rounded shimmer"></div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="h-16 bg-gray-200 rounded shimmer"></div>
-                  <div className="h-16 bg-gray-200 rounded shimmer"></div>
-                  <div className="h-16 bg-gray-200 rounded shimmer"></div>
+              {bookingResult.bookingId && (
+                <div className="flex-shrink-0 ml-2">
+                  <span className="text-xs text-gray-500 font-mono">#{bookingResult.bookingId}</span>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {bookingResult.error && bookingResult.status === 'error' && (
+          <div className="mb-4 p-3 bg-red-50 rounded border border-red-100">
+            <span className="text-xs font-medium text-red-700 block mb-1">Error:</span>
+            <p className="text-sm text-red-800 leading-relaxed">{bookingResult.error}</p>
+          </div>
+        )}
+
+        {/* Surgeon and Sales Rep row - matching CachedTemplatesCard style */}
+        <div className="space-y-3 mb-4">
+          <div className="flex items-start gap-2">
+            <div className="w-8 h-8 bg-green-50 rounded-full flex items-center justify-center flex-shrink-0">
+              <Stethoscope className="w-4 h-4 text-green-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm text-gray-500 uppercase tracking-wide">SURGEON</p>
+              <p className="font-medium text-gray-900 text-base truncate">
+                {bookingResult.surgeon || 'No specific surgeon'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-start gap-2">
+            <div className="w-8 h-8 bg-purple-50 rounded-full flex items-center justify-center flex-shrink-0">
+              <User className="w-4 h-4 text-purple-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm text-gray-500 uppercase tracking-wide">SALES REP</p>
+              <p className="font-medium text-gray-900 text-base truncate">
+                {bookingResult.salesRep || 'Not specified'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Surgery Details - compact format */}
+        {(bookingResult.surgeryDate || bookingResult.surgeryType) && (
+          <div className="mb-4 space-y-2">
+            {bookingResult.surgeryDate && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-900">Surgery Date</span>
+                <span className="text-sm text-gray-700">{bookingResult.surgeryDate}</span>
               </div>
+            )}
+            {bookingResult.surgeryType && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-900">Surgery Type</span>
+                <span className="text-sm text-gray-700">{bookingResult.surgeryType}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Items section - matching CachedTemplatesCard style */}
+        <div className="mb-4">
+          <h4 className="text-sm font-medium text-gray-900 mb-2">Items</h4>
+          {bookingResult.items && bookingResult.items.length > 0 ? (
+            <div className="space-y-2">
+              {bookingResult.items.map((item, itemIndex) => (
+                <div key={itemIndex} className="flex justify-between items-center p-3 bg-gray-50 rounded text-sm">
+                  <span className="font-medium text-gray-900 flex-1 min-w-0 truncate">
+                    {item.name || item.materialId || 'Unknown Item'}
+                  </span>
+                  <span className="text-gray-600 ml-2 flex-shrink-0">
+                    Qty: {item.quantity}
+                  </span>
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="space-y-6">
-              <header className="flex items-start gap-4">
-                <div 
-                  className={`${statusConfig.iconColor} fade-in mt-1`}
-                  role="img"
-                  aria-label={`${result.status} status`}
-                >
-                  {statusConfig.icon}
-                </div>
-                <div className="flex-1">
-                  <h3 className={`font-semibold text-base text-black dark:text-white fade-in ${animationStage >= 1 ? "typing-animation" : "opacity-0"}`}>
-                    {result.message}
-                    {animationStage === 1 && showTypingCursor && (
-                      <span className="typing-cursor">&nbsp;</span>
-                    )}
-                  </h3>
-                </div>
-              </header>
+            <div className="p-3 bg-gray-50 rounded text-sm text-gray-500 text-center">
+              No items specified
+            </div>
+          )}
+        </div>
 
-              {/* Booking details */}
-              <div className="space-y-4 text-sm">
-                {/* Booking ID */}
-                {result.bookingId && (
-                  <div
-                    className={`flex items-center gap-3 p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20 fade-in ${animationStage >= 2 ? "" : "opacity-0"} delay-200`}
-                  >
-                    <Calendar size={18} className="text-gray-700" />
-                    <span className="font-medium text-black">Booking ID:</span>
-                    <span className="font-mono text-gray-700 font-semibold">
-                      {result.bookingId}
-                      {animationStage === 2 && showTypingCursor && (
-                        <span className="typing-cursor">&nbsp;</span>
-                      )}
-                    </span>
-                  </div>
-                )}
-
-                {/* Customer Information */}
-                {result.customer && (
-                  <div className="space-y-2 fade-in delay-300">
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-black min-w-[120px]">
-                        Customer:
-                      </span>
-                      <span className="text-gray-700 font-medium">
-                        {result.customer}
-                      </span>
-                    </div>
-                    {result.customerId && (
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium text-black min-w-[120px]">
-                          Customer ID:
-                        </span>
-                        <span className="text-gray-600">{result.customerId}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Equipment and Personnel */}
-                <div className="space-y-2 fade-in delay-400">
-                  {result.equipment && (
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-black min-w-[120px]">
-                        Equipment:
-                      </span>
-                      <span className="text-gray-700">{result.equipment}</span>
-                    </div>
-                  )}
-                  {result.surgeon && (
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-black min-w-[120px]">
-                        Surgeon:
-                      </span>
-                      <span className="text-gray-700">{result.surgeon}</span>
-                    </div>
-                  )}
-                  {result.salesRep && (
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-black min-w-[120px]">
-                        Sales Rep:
-                      </span>
-                      <span className="text-gray-700">{result.salesRep}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Surgery Details */}
-                <div className="space-y-2 fade-in delay-500">
-                  {result.surgeryDate && (
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-black min-w-[120px]">
-                        Surgery Date:
-                      </span>
-                      <span className="text-gray-700">
-                        {result.surgeryDate}
-                        {result.surgeryTime && ` at ${result.surgeryTime}`}
-                      </span>
-                    </div>
-                  )}
-                  {result.surgeryType && (
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-black min-w-[120px]">
-                        Surgery Type:
-                      </span>
-                      <span className="text-gray-700">{result.surgeryType}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Items List */}
-                {result.items && result.items.length > 0 && (
-                  <div className="fade-in delay-600">
-                    <h4 className="font-medium block mb-3 text-black">Items:</h4>
-                    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 space-y-3 border border-white/30 divide-y divide-gray-100">
-                      {result.items.map((item, index) => (
-                        <div
-                          key={index}
-                          className="py-3 first:pt-0 last:pb-0"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="flex-1 flex items-center gap-3 flex-wrap">
-                              <span className="text-gray-700 font-medium">
-                                {item.name}
-                              </span>
-                              {item.availability && (
-                                <span
-                                  className={`px-2 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1
-                                    ${item.availability.toLowerCase().includes("available") &&
-                                    !item.availability.toLowerCase().includes("not")
-                                      ? "bg-gradient-to-r from-[#10b981] to-[#16a34a] text-white"
-                                      : "bg-gradient-to-r from-[#ef4444] to-[#dc2626] text-white"
-                                    }`}
-                                  role="status"
-                                >
-                                  {item.availability.toLowerCase().includes("available") ? 
-                                    <CheckCircle size={12} weight="fill" /> : 
-                                    <XCircle size={12} weight="fill" />
-                                  }
-                                  {item.availability}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500 text-sm">Quantity:</span>
-                              <span className="text-gray-700 font-semibold">{item.quantity}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Operational Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 text-sm fade-in delay-700">
-                  {result.currency && (
-                    <div className="text-center p-3 bg-white/60 rounded-lg">
-                      <span className="block text-gray-500 text-xs mb-1">
-                        Currency
-                      </span>
-                      <span className="font-semibold text-black">
-                        {result.currency}
-                      </span>
-                    </div>
-                  )}
-                  {result.reservationType && (
-                    <div className="text-center p-3 bg-white/60 rounded-lg">
-                      <span className="block text-gray-500 text-xs mb-1">
-                        Reservation
-                      </span>
-                      <span className="font-semibold text-black">
-                        {result.reservationType}
-                      </span>
-                    </div>
-                  )}
-                  {result.simulation && (
-                    <div className="text-center p-3 bg-white/60 rounded-lg">
-                      <span className="block text-gray-500 text-xs mb-1">
-                        Simulation
-                      </span>
-                      <span className="font-semibold text-black">
-                        {result.simulation}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Notes */}
-                {result.notes && (
-                  <div className="p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20 text-sm fade-in delay-900">
-                    <span className="font-medium text-black block mb-2">Notes:</span>
-                    <span className="text-gray-700 leading-relaxed">
-                      {result.notes}
-                    </span>
-                  </div>
-                )}
+        {/* Bottom Section - Fixed Height for Alignment */}
+        <div className="mt-auto space-y-4">
+          {/* Operational Details - matching CachedTemplatesCard grid */}
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            {bookingResult.currency && (
+              <div className="text-center p-2 bg-gray-50 rounded">
+                <span className="block text-gray-500 mb-1">Currency</span>
+                <span className="font-semibold text-gray-900">{bookingResult.currency}</span>
               </div>
+            )}
+            {bookingResult.reservationType && (
+              <div className="text-center p-2 bg-gray-50 rounded">
+                <span className="block text-gray-500 mb-1">Reservation</span>
+                <span className="font-semibold text-gray-900">{bookingResult.reservationType}</span>
+              </div>
+            )}
+            {bookingResult.simulation !== undefined && (
+              <div className="text-center p-2 bg-gray-50 rounded">
+                <span className="block text-gray-500 mb-1">Simulation</span>
+                <span className="font-semibold text-gray-900">
+                  {typeof bookingResult.simulation === 'boolean' 
+                    ? (bookingResult.simulation ? 'Yes' : 'No') 
+                    : bookingResult.simulation}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Notes - matching CachedTemplatesCard style */}
+          {bookingResult.notes && (
+            <div className="p-3 bg-blue-50 rounded border border-blue-100">
+              <span className="text-xs font-medium text-blue-700 block mb-1">Notes:</span>
+              <p className="text-sm text-blue-800 leading-relaxed">{bookingResult.notes}</p>
             </div>
           )}
         </div>
       </div>
     </div>
   );
-};// Parsing function to extract booking result info from markdown text
-export const parseBookingResultInfo = (text: string): BookingResultInfo[] => {
-  const results: BookingResultInfo[] = [];
-
-  // Pattern for complete booking-result blocks
-  const completeResultPattern = /```booking-result\s+([\s\S]*?)```/g;
-  // Pattern for incomplete booking-result blocks
-  const incompleteResultPattern = /```booking-result\s+([\s\S]*?)$/;
-
-  // Check for complete results
-  let match;
-  let matchCount = 0;
-  while ((match = completeResultPattern.exec(text)) !== null) {
-    matchCount++;
-    const resultContent = match[1];
-    const result = extractBookingResultDetails(resultContent);
-    results.push(result);
-  }
-
-  // Check for incomplete result at the end of text (only if no complete blocks were found)
-  if (matchCount === 0) {
-    const incompleteMatch = text.match(incompleteResultPattern);
-    if (incompleteMatch && !text.endsWith("```")) {
-      const incompleteContent = incompleteMatch[1];
-      const result = extractBookingResultDetails(incompleteContent);
-      results.push(result);
-    }
-  }
-
-  return results;
 };
-
-// Helper function to extract booking result details from content
-const extractBookingResultDetails = (content: string): BookingResultInfo => {
-  const lines = content.trim().split("\n");
-
-  const result: BookingResultInfo = {
-    status: "success",
-    message: "Operation completed",
-    items: [],
-  };
-
-  let isInItemsSection = false;
-
-  lines.forEach((line) => {
-    const cleanLine = line.trim();
-
-    if (cleanLine.startsWith("status:")) {
-      const status = cleanLine.slice(7).trim() as
-        | "success"
-        | "error"
-        | "warning";
-      result.status = status;
-    } else if (cleanLine.startsWith("bookingId:")) {
-      result.bookingId = cleanLine.slice(10).trim();
-    } else if (cleanLine.startsWith("customer:")) {
-      result.customer = cleanLine.slice(9).trim();
-    } else if (cleanLine.startsWith("customerId:")) {
-      result.customerId = cleanLine.slice(11).trim();
-    } else if (cleanLine.startsWith("message:")) {
-      result.message = cleanLine.slice(8).trim();
-    } else if (cleanLine.startsWith("surgeryDate:")) {
-      result.surgeryDate = cleanLine.slice(12).trim();
-    } else if (cleanLine.startsWith("surgeryTime:")) {
-      result.surgeryTime = cleanLine.slice(12).trim();
-    } else if (cleanLine.startsWith("availability:")) {
-      result.availability = cleanLine.slice(13).trim();
-    } else if (cleanLine.startsWith("notes:")) {
-      result.notes = cleanLine.slice(6).trim();
-    } else if (cleanLine.startsWith("equipment:")) {
-      result.equipment = cleanLine.slice(10).trim();
-    } else if (cleanLine.startsWith("surgeon:")) {
-      result.surgeon = cleanLine.slice(8).trim();
-    } else if (cleanLine.startsWith("salesRep:")) {
-      result.salesRep = cleanLine.slice(9).trim();
-    } else if (cleanLine.startsWith("currency:")) {
-      result.currency = cleanLine.slice(9).trim();
-    } else if (cleanLine.startsWith("reservationType:")) {
-      result.reservationType = cleanLine.slice(16).trim();
-    } else if (cleanLine.startsWith("surgeryType:")) {
-      result.surgeryType = cleanLine.slice(12).trim();
-    } else if (cleanLine.startsWith("simulation:")) {
-      result.simulation = cleanLine.slice(11).trim();
-    } else if (cleanLine.toLowerCase() === "items:") {
-      isInItemsSection = true;
-    } else if (isInItemsSection && cleanLine.includes("(Quantity:")) {
-      // Parse item line like "CRANIAL KIT W/ DRILL SPLINT MODEL (Quantity: 1)" or "ItemName (Quantity: 1) - Not Available"
-      const match = cleanLine.match(/^(.+?)\s*\(Quantity:\s*(\d+)\)(?:\s*-\s*(.+))?$/);
-      if (match) {
-        const itemName = match[1].trim();
-        const quantity = parseInt(match[2]);
-        const availability = match[3] ? match[3].trim() : undefined;
-        
-        result.items!.push({
-          name: itemName,
-          quantity: quantity,
-          availability: availability,
-        });
-      }
-    } else if (isInItemsSection && cleanLine && !cleanLine.includes(":")) {
-      // Stop items section when we hit a non-item line
-      isInItemsSection = false;
-    }
-  });
-
-  return result;
-};
-
-// Function to detect if text contains booking-result markdown
-export const hasBookingResultMarkdown = (text: string): boolean => {
-  const resultPattern = /```booking-result\s+/;
-  return resultPattern.test(text);
-};
-
-// Function to remove booking-result markdown from text
-export const removeBookingResultsFromText = (text: string): string => {
-  // Remove complete booking-result blocks
-  let cleaned = text.replace(/```booking-result\s+([\s\S]*?)```/g, "");
-
-  // Remove incomplete booking-result block at the end
-  cleaned = cleaned.replace(/```booking-result\s+([\s\S]*?)$/, "");
-
-  return cleaned;
-};
-

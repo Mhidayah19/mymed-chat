@@ -273,9 +273,13 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
       isDraft: customizations?.isDraft !== false, // Default to draft
       currency: "EUR",
       customer: template.customerId,
+      customerName: template.customer, // Add customer name for richer display
+      customerId: template.customerId, // Also keep customerId explicitly
+      salesrep: template.salesrep, // Add back for UI display - will be filtered before MCP call
       dayOfUse: dayOfUse.toISOString(),
       endOfUse: endOfUse.toISOString(),
       description: template.equipment.substring(0, 15), // Truncate to 15 chars max
+      equipmentDescription: template.equipment, // Full equipment description
       surgeryType: "OR",
       isSimulation: true,
       reservationType: "01",
