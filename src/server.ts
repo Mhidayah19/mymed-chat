@@ -48,60 +48,71 @@ export class Chat extends AIChatAgent<Env> {
   // Create filtered MCP tools that sanitize arguments for booking operations
   private createFilteredMcpTools(rawMcpTools: any) {
     const filteredTools: any = {};
-    
+
     // Fields that cause issues with the MCP booking API
-    const problematicFields = ['salesrep', 'equipmentDescription'];
-    
+    const problematicFields = ["salesrep", "equipmentDescription"];
+
     for (const [toolName, tool] of Object.entries(rawMcpTools)) {
-      if (typeof tool === 'object' && tool !== null && 'execute' in tool && 
-          (toolName.includes('createBooking') || toolName.includes('updateBooking'))) {
+      if (
+        typeof tool === "object" &&
+        tool !== null &&
+        "execute" in tool &&
+        (toolName.includes("createBooking") ||
+          toolName.includes("updateBooking"))
+      ) {
         // Create a wrapper for booking tools that filters arguments
         const originalTool = tool as any;
         filteredTools[toolName] = {
           ...originalTool,
           execute: async (args: any) => {
-            console.log('🔧 Original booking args:', JSON.stringify(args, null, 2));
-            
+            console.log(
+              "🔧 Original booking args:",
+              JSON.stringify(args, null, 2)
+            );
+
             // Store original args for UI display
             const originalArgs = { ...args };
-            
+
             // Filter out problematic fields for MCP API call
             const filteredArgs = { ...args };
-            problematicFields.forEach(field => {
+            problematicFields.forEach((field) => {
               if (field in filteredArgs) {
                 console.log(`🗑️ Filtering out ${field} from MCP API call`);
                 delete filteredArgs[field];
               }
             });
-            
-            console.log('✅ Filtered booking args:', JSON.stringify(filteredArgs, null, 2));
-            
+
+            console.log(
+              "✅ Filtered booking args:",
+              JSON.stringify(filteredArgs, null, 2)
+            );
+
             try {
               // Call original tool with filtered args
               const result = await originalTool.execute(filteredArgs);
-              
+
               // Attach original args to result for UI component access
-              if (result && typeof result === 'object') {
+              if (result && typeof result === "object") {
                 result._originalArgs = originalArgs;
               }
-              
+
               return result;
             } catch (error) {
-              console.error('❌ Error in filtered MCP tool execution:', error);
+              console.error("❌ Error in filtered MCP tool execution:", error);
               // Return error with original args attached for UI context
               return {
-                error: error instanceof Error ? error.message : 'Unknown error',
-                _originalArgs: originalArgs
+                error: error instanceof Error ? error.message : "Unknown error",
+                _originalArgs: originalArgs,
               };
             }
-          }
+          },
         };
       } else {
         // Non-booking tools pass through unchanged
         filteredTools[toolName] = tool;
       }
     }
-    
+
     return filteredTools;
   }
 
@@ -179,7 +190,7 @@ export class Chat extends AIChatAgent<Env> {
   ) {
     // Collect and filter MCP tools
     const rawMcpTools = this.mcp.unstable_getAITools();
-    
+
     // Create filtered MCP tools that remove problematic fields for booking operations
     const mcpTools = this.createFilteredMcpTools(rawMcpTools);
 
@@ -264,13 +275,13 @@ export class Chat extends AIChatAgent<Env> {
                 isDraft: args.isDraft,
               }
             );
-            
+
             // Return structured data for RecommendedBookingCard component
             return {
-              type: 'recommended-booking',
+              type: "recommended-booking",
               ...result,
               // Special marker to indicate this is a complete UI response
-              _complete_ui_response: true
+              _complete_ui_response: true,
             };
           } catch (error) {
             console.error(
@@ -366,13 +377,13 @@ export class Chat extends AIChatAgent<Env> {
               AGENT_NAMES.MAIN_ANALYZER
             );
             const templates = await (bookingAgent as any).getCachedTemplates();
-            
+
             // Return structured data for CachedTemplatesCard component
             return {
-              type: 'cached-templates',
+              type: "cached-templates",
               ...templates,
               // Special marker to indicate this is a complete UI response
-              _complete_ui_response: true
+              _complete_ui_response: true,
             };
           } catch (error) {
             console.error(

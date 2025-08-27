@@ -419,7 +419,7 @@ export default function Chat() {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4 sm:space-y-6 pb-20 sm:pb-24 bg-gray-50/30 dark:bg-gray-900/30">
+          <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4 sm:space-y-6 pb-20 sm:pb-24" style={{ background: 'var(--color-chat-bg)' }}>
             <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
               {agentMessages.length === 0 && !isLoading && (
                 <div className="h-full flex items-center justify-center pt-20">
@@ -517,8 +517,8 @@ export default function Chat() {
                                     <Card
                                       className={`p-3 sm:p-4 rounded-lg w-full ${
                                         isUser
-                                          ? "rounded-br-none bg-neutral-100 dark:bg-neutral-900"
-                                          : "rounded-bl-none border-assistant-border bg-transparent border border-neutral-200 dark:border-neutral-800"
+                                          ? "rounded-br-none bg-[var(--color-chat-user-bubble)] border border-[var(--color-chat-user-border)] text-gray-600"
+                                          : "rounded-bl-none bg-[var(--color-chat-ai-bubble)] border border-[var(--color-chat-ai-border)] text-gray-600 shadow-sm"
                                       } ${
                                         part.text.startsWith(
                                           "scheduled message"
@@ -799,7 +799,7 @@ export default function Chat() {
             className="p-4 sm:p-6 bg-input-background relative"
           >
             <div className="relative w-full max-w-4xl mx-auto">
-              <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200" style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}>
+              <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200 bg-gray-200">
                 <div className="relative flex items-center bg-white rounded-full py-2">
                 {/* AI icon on the left */}
                 <div className="pl-6 pr-4">

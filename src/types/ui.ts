@@ -1,4 +1,4 @@
-import type { BookingTemplate } from '../types';
+import type { BookingTemplate } from "../types";
 
 /**
  * UI-specific interfaces for template display components
@@ -16,7 +16,7 @@ export interface TransformedTemplate {
   customer: string;
   customerId: string;
   surgeon: string;
-  salesRep: string;  // Note: capitalized 'R' for UI consistency
+  salesRep: string; // Note: capitalized 'R' for UI consistency
   frequency: number;
   totalBookings: number;
   equipment: string;
@@ -27,7 +27,7 @@ export interface TransformedTemplate {
 }
 
 export interface TransformedTemplatesData {
-  type: 'templates';
+  type: "templates";
   templates: TransformedTemplate[];
   count: number;
   status: string;

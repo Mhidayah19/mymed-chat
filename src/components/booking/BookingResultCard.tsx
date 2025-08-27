@@ -1,9 +1,24 @@
-import { CheckCircle, XCircle, Warning, MapPin, Stethoscope, User } from "@phosphor-icons/react";
+"use client";
+
+import {
+  CheckCircle,
+  XCircle,
+  Warning,
+  Stethoscope,
+  User,
+  ArrowSquareOut,
+  Copy,
+  Check,
+  Calendar,
+  Scissors,
+} from "@phosphor-icons/react";
+import { useState } from "react";
 
 // Interface for createBooking/updateBooking results
 export interface BookingResult {
-  status: 'success' | 'error' | 'warning';
+  status: "success" | "error" | "warning";
   bookingId?: string;
+  originalBookingId?: string; // Keep original for URL
   customer: string;
   customerId?: string | number;
   message: string;
@@ -21,19 +36,24 @@ export interface BookingResult {
     quantity: number;
     materialId?: string;
     description?: string;
-    availability?: string;
+    availability?: string | boolean;
   }>;
   notes?: string;
   error?: string;
 }
 
 // Parser function to extract BookingResult from raw tool result
-const parseBookingResult = (rawResult: any, requestArgs?: any): BookingResult => {
+const parseBookingResult = (
+  rawResult: any,
+  requestArgs?: any
+): BookingResult => {
   let bookingResultData: any = {};
-  
-  if (rawResult && typeof rawResult === 'object') {
-    if ('content' in rawResult && Array.isArray(rawResult.content)) {
-      const textContent = rawResult.content.find((c: any) => c.type === 'text')?.text;
+
+  if (rawResult && typeof rawResult === "object") {
+    if ("content" in rawResult && Array.isArray(rawResult.content)) {
+      const textContent = rawResult.content.find(
+        (c: any) => c.type === "text"
+      )?.text;
       if (textContent) {
         try {
           bookingResultData = JSON.parse(textContent);
@@ -45,256 +65,462 @@ const parseBookingResult = (rawResult: any, requestArgs?: any): BookingResult =>
       bookingResultData = rawResult;
     }
   }
-  
+
   // Extract booking data from nested structure
   const booking = bookingResultData.booking || bookingResultData;
-  
-  // Extract request body data for enriching display - check for original args first
+
+  // Extract request body data for enriching display
   const originalArgs = rawResult?._originalArgs || requestArgs || {};
   const requestBody = originalArgs;
-  console.log('📋 BookingOperationResultCard - Request args:', JSON.stringify(requestBody, null, 2));
-  console.log('📋 BookingOperationResultCard - Has original args:', !!rawResult?._originalArgs);
-  
+
   // Transform to BookingResult format
-  const status: 'success' | 'error' | 'warning' = bookingResultData.success !== false ? 'success' : 'error';
-  
+  const status: "success" | "error" | "warning" =
+    bookingResultData.success !== false ? "success" : "error";
+
   // Extract customer name - prioritize request args, then booking data
-  let customerName = '';
+  let customerName = "";
   let customerId = undefined;
-  
-  if (requestBody.customerName && typeof requestBody.customerName === 'string' && requestBody.customerName.trim() !== '') {
+
+  if (
+    requestBody.customerName &&
+    typeof requestBody.customerName === "string" &&
+    requestBody.customerName.trim() !== ""
+  ) {
     customerName = requestBody.customerName.trim();
     customerId = requestBody.customerId || requestBody.customer;
-  } else if (booking.customerName && booking.customerName.trim() !== '') {
+  } else if (booking.customerName && booking.customerName.trim() !== "") {
     customerName = booking.customerName.trim();
   } else {
     customerName = `Customer ${booking.customer || requestBody.customer}`;
   }
-  
-  // Extract booking ID from multiple possible locations in the result
+
+  // Extract booking ID from multiple possible locations
   let bookingId = undefined;
+  let originalBookingId = undefined;
+
+  // Helper function to check if booking ID is valid (has non-zero digits)
+  const isValidBookingId = (id: string) => {
+    if (!id || typeof id !== 'string') return false;
+    const trimmed = id.trim().replace(/^0+/, '');
+    return trimmed.length > 0;
+  };
+
+  // Try different possible locations for booking ID
+  const candidates = [
+    booking.bookingId,
+    booking.ID, 
+    booking.id,
+    bookingResultData.bookingId,
+    bookingResultData.ID,
+    bookingResultData.id
+  ];
+
+  console.log('🔍 All booking ID candidates:', candidates);
+
+  for (const candidate of candidates) {
+    if (candidate && isValidBookingId(candidate)) {
+      originalBookingId = candidate.trim(); // Keep original for URL
+      bookingId = originalBookingId.replace(/^0+/, ''); // Remove leading zeros for display
+      console.log('✅ Found valid booking ID:', bookingId, '(original:', originalBookingId, ')');
+      break;
+    }
+  }
+
+  console.log('📋 Final extracted booking ID:', bookingId);
   
-  // Try different paths where booking ID might be stored
-  if (booking.bookingId && booking.bookingId !== '0000000000') {
-    bookingId = booking.bookingId;
-  } else if (booking.ID && booking.ID !== '0000000000') {
-    bookingId = booking.ID;
-  } else if (booking.id && booking.id !== '0000000000') {
-    bookingId = booking.id;
-  } else if (bookingResultData.bookingId && bookingResultData.bookingId !== '0000000000') {
-    bookingId = bookingResultData.bookingId;
-  } else if (bookingResultData.ID && bookingResultData.ID !== '0000000000') {
-    bookingId = bookingResultData.ID;
-  } else if (bookingResultData.id && bookingResultData.id !== '0000000000') {
-    bookingId = bookingResultData.id;
+  // Debug availability for items from both sources
+  if (booking.items?.length > 0) {
+    console.log('🔍 Booking items availability status:');
+    booking.items.forEach((item: any, index: number) => {
+      console.log(`  Item ${index + 1}: ${item.description || item.materialId} - isAvailable: ${item.isAvailable} (type: ${typeof item.isAvailable})`);
+    });
   }
   
-  console.log('📋 Extracted booking ID:', bookingId);
+  if (requestBody.items?.length > 0) {
+    console.log('🔍 Request items availability status:');
+    requestBody.items.forEach((item: any, index: number) => {
+      console.log(`  Item ${index + 1}: ${item.name || item.materialId} - availability: ${item.availability} (type: ${typeof item.availability})`);
+    });
+  }
 
   return {
     status,
     bookingId: bookingId,
+    originalBookingId: originalBookingId, // Keep original for URL
     customer: customerName,
     customerId: customerId,
-    message: bookingResultData.success 
-      ? `Booking created successfully${bookingId ? ` (ID: ${bookingId})` : ''}` 
-      : 'Failed to create booking',
-    equipment: requestBody.equipmentDescription || booking.description || booking.equipmentDescription || "Medical Equipment",
-    surgeon: requestBody.surgeryDescription || booking.surgeryDescription || booking.surgeon || "No specific surgeon",
-    salesRep: requestBody.salesrep || "Not specified", // Extract from original args that include salesrep
-    surgeryDate: requestBody.dayOfUse ? new Date(requestBody.dayOfUse).toLocaleDateString() : (booking.dayOfUse ? new Date(booking.dayOfUse).toLocaleDateString() : undefined),
+    message: bookingResultData.success
+      ? `Booking created successfully${bookingId ? ` (ID: ${bookingId})` : ""}`
+      : "Failed to create booking",
+    equipment:
+      requestBody.equipmentDescription ||
+      booking.description ||
+      booking.equipmentDescription ||
+      "Medical Equipment",
+    surgeon:
+      requestBody.surgeryDescription ||
+      booking.surgeryDescription ||
+      booking.surgeon ||
+      "No specific surgeon",
+    salesRep: requestBody.salesrep || "Not specified",
+    surgeryDate: requestBody.dayOfUse
+      ? new Date(requestBody.dayOfUse).toLocaleDateString()
+      : booking.dayOfUse
+        ? new Date(booking.dayOfUse).toLocaleDateString()
+        : undefined,
     surgeryType: requestBody.surgeryType || booking.surgeryType,
     currency: requestBody.currency || booking.currency,
     reservationType: requestBody.reservationType || booking.reservationType,
-    simulation: requestBody.isSimulation !== undefined ? requestBody.isSimulation : booking.isSimulation,
-    items: requestBody.items?.map((item: any) => ({
-      name: item.description || item.materialId,
-      materialId: item.materialId,
-      quantity: parseInt(item.quantity) || 1
-    })) || booking.items?.map((item: any) => ({
-      name: item.description || item.materialId,
-      materialId: item.materialId,
-      quantity: parseInt(item.quantity) || 1
-    })) || [],
-    notes: requestBody.notes?.[0]?.noteContent || booking.notes?.[0]?.noteContent,
-    error: bookingResultData.success === false ? bookingResultData.error || 'Unknown error' : undefined
+    simulation:
+      requestBody.isSimulation !== undefined
+        ? requestBody.isSimulation
+        : booking.isSimulation,
+    items:
+      booking.items?.map((item: any) => ({
+        name: item.description || item.materialId,
+        materialId: item.materialId,
+        quantity: Number.parseInt(item.quantity) || 1,
+        availability: item.isAvailable, // Use isAvailable from booking response
+      })) ||
+      requestBody.items?.map((item: any) => ({
+        name: item.description || item.materialId,
+        materialId: item.materialId,
+        quantity: Number.parseInt(item.quantity) || 1,
+        availability: item.availability || item.isAvailable,
+      })) ||
+      [],
+    notes:
+      requestBody.notes?.[0]?.noteContent || booking.notes?.[0]?.noteContent,
+    error:
+      bookingResultData.success === false
+        ? bookingResultData.error || "Unknown error"
+        : undefined,
   };
 };
 
 // Component that accepts either parsed or raw data
-export const BookingOperationResultCard = ({ 
-  data, 
+export const BookingOperationResultCard = ({
+  data,
   rawResult,
-  requestArgs 
-}: { 
+  requestArgs,
+}: {
   data?: BookingResult;
   rawResult?: any;
   requestArgs?: any;
 }) => {
+  const [copied, setCopied] = useState(false);
+
   // Parse raw result if provided, otherwise use parsed data
-  const bookingResult = rawResult ? parseBookingResult(rawResult, requestArgs) : data;
-  
+  const bookingResult = rawResult
+    ? parseBookingResult(rawResult, requestArgs)
+    : data;
+
   if (!bookingResult) {
-    return <div>No booking result data available</div>;
+    return (
+      <div className="my-4 p-6 bg-gray-50 rounded-xl border border-gray-200 text-center">
+        <p className="text-gray-500">No booking result data available</p>
+      </div>
+    );
   }
 
-  const getStatusIcon = () => {
-    switch (bookingResult.status) {
-      case 'success':
-        return <CheckCircle className="w-4 h-4" />;
-      case 'error':
-        return <XCircle className="w-4 h-4" />;
-      case 'warning':
-        return <Warning className="w-4 h-4" />;
-      default:
-        return <CheckCircle className="w-4 h-4" />;
+  // Handler for copying booking ID
+  const handleCopyBookingId = async () => {
+    if (bookingResult.bookingId) {
+      try {
+        await navigator.clipboard.writeText(bookingResult.bookingId);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error("Failed to copy booking ID:", err);
+      }
     }
   };
 
+  // Handler for opening booking URL
+  const handleOpenBooking = () => {
+    const idForUrl = bookingResult.originalBookingId || bookingResult.bookingId;
+    if (idForUrl) {
+      const baseUrl =
+        "https://mymediset-xba-dev-eu10.launchpad.cfapps.eu10.hana.ondemand.com/site?siteId=04bd86f5-c383-41a9-966a-c97d7744a8ea#cloudmymedisetuibookings-manage?sap-ui-app-id-hint=mymediset_cloud.mymediset.uibookings&/Bookings";
+      const bookingUrl = `${baseUrl}(${idForUrl})`;
+      console.log('🔗 Opening booking URL with ID:', idForUrl);
+      window.open(bookingUrl, "_blank");
+    }
+  };
+
+  const getStatusConfig = () => {
+    // Check if simulation is true to show "CHECK" status
+    if (bookingResult.simulation === true || bookingResult.simulation === "true") {
+      return {
+        icon: <Warning className="w-4 h-4" />,
+        textColor: "text-yellow-700",
+        bgColor: "bg-yellow-50",
+        status: "CHECK",
+      };
+    }
+    
+    switch (bookingResult.status) {
+      case "success":
+        return {
+          icon: <CheckCircle className="w-4 h-4" />,
+          textColor: "text-green-700",
+          bgColor: "bg-green-50",
+          status: "SUCCESS",
+        };
+      case "error":
+        return {
+          icon: <XCircle className="w-4 h-4" />,
+          textColor: "text-red-700",
+          bgColor: "bg-red-50", 
+          status: "FAILED",
+        };
+      case "warning":
+        return {
+          icon: <Warning className="w-4 h-4" />,
+          textColor: "text-yellow-700",
+          bgColor: "bg-yellow-50",
+          status: "WARNING",
+        };
+      default:
+        return {
+          icon: <CheckCircle className="w-4 h-4" />,
+          textColor: "text-green-700",
+          bgColor: "bg-green-50",
+          status: "SUCCESS",
+        };
+    }
+  };
+
+  const statusConfig = getStatusConfig();
+
   return (
     <div className="my-4">
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col">
-        {/* Header with customer name - matching CachedTemplatesCard style */}
-        <div className="flex items-start gap-2 mb-3">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-            bookingResult.status === 'success' ? 'bg-green-50' : 
-            bookingResult.status === 'error' ? 'bg-red-50' : 'bg-yellow-50'
-          }`}>
-            <div className={`${
-              bookingResult.status === 'success' ? 'text-green-600' : 
-              bookingResult.status === 'error' ? 'text-red-600' : 'text-yellow-600'
-            }`}>
-              {getStatusIcon()}
+      <div className="bg-white border border-gray-200 overflow-hidden rounded-lg">
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${statusConfig.bgColor}`}>
+                  <div className={statusConfig.textColor}>
+                    {statusConfig.icon}
+                  </div>
+                </div>
+                <span className={`text-xs font-medium uppercase tracking-wider px-2 py-1 rounded-full ${statusConfig.bgColor} ${statusConfig.textColor}`}>
+                  {statusConfig.status}
+                </span>
+              </div>
+
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                {bookingResult.customer}
+              </h3>
+
+              {bookingResult.customerId && (
+                <p className="text-sm text-gray-500 mb-2">
+                  Customer ID: {bookingResult.customerId}
+                </p>
+              )}
+
+              {bookingResult.equipment && (
+                <p className="text-sm text-gray-600">
+                  {bookingResult.equipment}
+                </p>
+              )}
+            </div>
+
+            {bookingResult.bookingId && (
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                    Booking ID
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-lg font-medium text-gray-900">
+                      {bookingResult.bookingId}
+                    </span>
+                    <button
+                      onClick={handleCopyBookingId}
+                      className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                      title="Copy booking ID"
+                    >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleOpenBooking}
+                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Open booking"
+                >
+                  <ArrowSquareOut size={20} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {bookingResult.error && bookingResult.status === "error" && (
+          <div className="mx-4 mt-3 p-3 border-l-2 border-gray-300 bg-gray-50">
+            <p className="text-sm text-gray-700">{bookingResult.error}</p>
+          </div>
+        )}
+
+        <div className="p-4 space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-3">
+              <Stethoscope className="w-4 h-4 text-gray-400" />
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Surgeon
+                </p>
+                <p className="text-sm text-gray-900">
+                  {bookingResult.surgeon || "No specific surgeon"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <User className="w-4 h-4 text-gray-400" />
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Sales Rep
+                </p>
+                <p className="text-sm text-gray-900">
+                  {bookingResult.salesRep || "Not specified"}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between">
-              <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-lg text-gray-900 leading-tight truncate">
-                  {bookingResult.customer}{bookingResult.customerId && ` (${bookingResult.customerId})`}
-                </h3>
-                {bookingResult.equipment && (
-                  <p className="text-gray-600 text-sm mt-1 truncate">{bookingResult.equipment}</p>
-                )}
-              </div>
-              {bookingResult.bookingId && (
-                <div className="flex-shrink-0 ml-2">
-                  <span className="text-xs text-gray-500 font-mono">#{bookingResult.bookingId}</span>
+
+          {(bookingResult.surgeryDate || bookingResult.surgeryType) && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {bookingResult.surgeryDate && (
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Surgery Date
+                    </p>
+                    <p className="text-sm text-gray-900">
+                      {bookingResult.surgeryDate}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {bookingResult.surgeryType && (
+                <div className="flex items-center gap-3">
+                  <Scissors className="w-4 h-4 text-gray-400" />
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Surgery Type
+                    </p>
+                    <p className="text-sm text-gray-900">
+                      {bookingResult.surgeryType}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          )}
 
-        {/* Error Message */}
-        {bookingResult.error && bookingResult.status === 'error' && (
-          <div className="mb-4 p-3 bg-red-50 rounded border border-red-100">
-            <span className="text-xs font-medium text-red-700 block mb-1">Error:</span>
-            <p className="text-sm text-red-800 leading-relaxed">{bookingResult.error}</p>
-          </div>
-        )}
-
-        {/* Surgeon and Sales Rep row - matching CachedTemplatesCard style */}
-        <div className="space-y-3 mb-4">
-          <div className="flex items-start gap-2">
-            <div className="w-8 h-8 bg-green-50 rounded-full flex items-center justify-center flex-shrink-0">
-              <Stethoscope className="w-4 h-4 text-green-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm text-gray-500 uppercase tracking-wide">SURGEON</p>
-              <p className="font-medium text-gray-900 text-base truncate">
-                {bookingResult.surgeon || 'No specific surgeon'}
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-start gap-2">
-            <div className="w-8 h-8 bg-purple-50 rounded-full flex items-center justify-center flex-shrink-0">
-              <User className="w-4 h-4 text-purple-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm text-gray-500 uppercase tracking-wide">SALES REP</p>
-              <p className="font-medium text-gray-900 text-base truncate">
-                {bookingResult.salesRep || 'Not specified'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Surgery Details - compact format */}
-        {(bookingResult.surgeryDate || bookingResult.surgeryType) && (
-          <div className="mb-4 space-y-2">
-            {bookingResult.surgeryDate && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-900">Surgery Date</span>
-                <span className="text-sm text-gray-700">{bookingResult.surgeryDate}</span>
+          <div className="border-t border-gray-100 pt-3">
+            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+              Items ({bookingResult.items?.length || 0})
+            </h4>
+            {bookingResult.items && bookingResult.items.length > 0 ? (
+              <div className="space-y-2">
+                {bookingResult.items.map((item, itemIndex) => (
+                  <div
+                    key={itemIndex}
+                    className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-b-0"
+                  >
+                    <div>
+                      <p className="text-sm text-gray-900 font-medium">
+                        {item.name || item.materialId || "Unknown Item"}
+                      </p>
+                      {item.materialId && item.materialId !== item.name && (
+                        <p className="text-xs text-gray-500 font-mono">
+                          {item.materialId}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`text-sm font-medium ${(() => {
+                      console.log(`🎨 Item ${item.name || item.materialId} availability:`, item.availability, typeof item.availability);
+                      if (item.availability === true ) {
+                        console.log('  → Applying GREEN text');
+                        return 'text-green-600';
+                      } else if (item.availability === false) {
+                        console.log('  → Applying RED text');
+                        return 'text-red-600';
+                      } else {
+                        console.log('  → Applying GRAY text (default)');
+                        return 'text-gray-600';
+                      }
+                    })()}`}>
+                      Qty: {item.quantity}
+                    </span>
+                  </div>
+                ))}
               </div>
-            )}
-            {bookingResult.surgeryType && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-900">Surgery Type</span>
-                <span className="text-sm text-gray-700">{bookingResult.surgeryType}</span>
-              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-2">
+                No items specified
+              </p>
             )}
           </div>
-        )}
 
-        {/* Items section - matching CachedTemplatesCard style */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium text-gray-900 mb-2">Items</h4>
-          {bookingResult.items && bookingResult.items.length > 0 ? (
-            <div className="space-y-2">
-              {bookingResult.items.map((item, itemIndex) => (
-                <div key={itemIndex} className="flex justify-between items-center p-3 bg-gray-50 rounded text-sm">
-                  <span className="font-medium text-gray-900 flex-1 min-w-0 truncate">
-                    {item.name || item.materialId || 'Unknown Item'}
-                  </span>
-                  <span className="text-gray-600 ml-2 flex-shrink-0">
-                    Qty: {item.quantity}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-3 bg-gray-50 rounded text-sm text-gray-500 text-center">
-              No items specified
+          {(bookingResult.currency ||
+            bookingResult.reservationType ||
+            bookingResult.simulation !== undefined) && (
+            <div className="border-t border-gray-100 pt-3">
+              <div className="grid grid-cols-3 gap-4 text-center text-sm">
+                {bookingResult.currency && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                      Currency
+                    </p>
+                    <p className="text-gray-900 font-medium">
+                      {bookingResult.currency}
+                    </p>
+                  </div>
+                )}
+                {bookingResult.reservationType && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                      Reservation
+                    </p>
+                    <p className="text-gray-900 font-medium">
+                      {bookingResult.reservationType}
+                    </p>
+                  </div>
+                )}
+                {bookingResult.simulation !== undefined && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                      Simulation
+                    </p>
+                    <p className="text-gray-900 font-medium">
+                      {typeof bookingResult.simulation === "boolean"
+                        ? bookingResult.simulation
+                          ? "Yes"
+                          : "No"
+                        : bookingResult.simulation}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Bottom Section - Fixed Height for Alignment */}
-        <div className="mt-auto space-y-4">
-          {/* Operational Details - matching CachedTemplatesCard grid */}
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            {bookingResult.currency && (
-              <div className="text-center p-2 bg-gray-50 rounded">
-                <span className="block text-gray-500 mb-1">Currency</span>
-                <span className="font-semibold text-gray-900">{bookingResult.currency}</span>
-              </div>
-            )}
-            {bookingResult.reservationType && (
-              <div className="text-center p-2 bg-gray-50 rounded">
-                <span className="block text-gray-500 mb-1">Reservation</span>
-                <span className="font-semibold text-gray-900">{bookingResult.reservationType}</span>
-              </div>
-            )}
-            {bookingResult.simulation !== undefined && (
-              <div className="text-center p-2 bg-gray-50 rounded">
-                <span className="block text-gray-500 mb-1">Simulation</span>
-                <span className="font-semibold text-gray-900">
-                  {typeof bookingResult.simulation === 'boolean' 
-                    ? (bookingResult.simulation ? 'Yes' : 'No') 
-                    : bookingResult.simulation}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Notes - matching CachedTemplatesCard style */}
           {bookingResult.notes && (
-            <div className="p-3 bg-blue-50 rounded border border-blue-100">
-              <span className="text-xs font-medium text-blue-700 block mb-1">Notes:</span>
-              <p className="text-sm text-blue-800 leading-relaxed">{bookingResult.notes}</p>
+            <div className="border-t border-gray-100 pt-3">
+              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                Notes
+              </h4>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                {bookingResult.notes}
+              </p>
             </div>
           )}
         </div>

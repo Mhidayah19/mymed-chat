@@ -60,6 +60,13 @@
 
   /* Component colors */
 
+  /* Chat colors - Clean White Theme */
+  --color-chat-bg: #f9fafb; /* Gray-50 - Very light background */
+  --color-chat-ai-bubble: #ffffff; /* White background for AI messages */
+  --color-chat-ai-border: #e5e7eb; /* Gray-200 - Lighter border for AI */
+  --color-chat-user-bubble: #ffffff; /* White */
+  --color-chat-user-border: #9ca3af; /* Gray-400 - Slightly darker border for user */
+
   /* Base colors */
   --color-ob-base-100: var(--color-white);
   --color-ob-base-200: var(--color-neutral-50);
