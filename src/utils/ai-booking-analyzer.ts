@@ -45,6 +45,9 @@ const BookingAnalysisSchema = z.object({
         estimatedDate: z.string(),
         notes: z.string(),
         priority: z.enum(["high", "medium", "low"]),
+        currency: z.string().optional().describe("Currency code based on customer's region"),
+        surgeryType: z.string().optional().describe("Surgery type based on equipment pattern (OR, ICU, etc)"),
+
       }),
     })
   ),
@@ -96,6 +99,9 @@ Instructions:
 4. Generate practical insights about each customer's booking preferences
 5. Create a booking request body with realistic future date and helpful notes
 6. Set priority based on booking frequency and customer importance
+7. Suggest appropriate currency based on customer's region/location patterns
+8. Determine surgery type based on equipment patterns (OR for general surgery, ICU for critical care, etc)
+9. Set simulation flag based on booking context (true for testing, false for confirmed patterns)
 
 Focus on:
 - Medical equipment booking context

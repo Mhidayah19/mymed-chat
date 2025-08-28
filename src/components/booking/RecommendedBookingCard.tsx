@@ -1,4 +1,11 @@
-import { MapPin, Stethoscope, User, Warning, Calendar, Scissors } from "@phosphor-icons/react";
+import {
+  MapPin,
+  Stethoscope,
+  User,
+  Warning,
+  Calendar,
+  Scissors,
+} from "@phosphor-icons/react";
 
 interface RecommendedBookingTemplate {
   customer: string;
@@ -220,12 +227,16 @@ export const RecommendedBookingCard = ({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${statusConfig.bgColor}`}>
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center ${statusConfig.bgColor}`}
+                >
                   <div className={statusConfig.textColor}>
                     {statusConfig.icon}
                   </div>
                 </div>
-                <span className={`text-xs font-medium uppercase tracking-wider px-2 py-1 rounded-full ${statusConfig.bgColor} ${statusConfig.textColor}`}>
+                <span
+                  className={`text-xs font-medium uppercase tracking-wider px-2 py-1 rounded-full ${statusConfig.bgColor} ${statusConfig.textColor}`}
+                >
                   {statusConfig.status}
                 </span>
               </div>
@@ -236,9 +247,7 @@ export const RecommendedBookingCard = ({
               </h3>
 
               {template.equipment && (
-                <p className="text-sm text-gray-600">
-                  {template.equipment}
-                </p>
+                <p className="text-sm text-gray-600">{template.equipment}</p>
               )}
             </div>
 

@@ -46,75 +46,75 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   // Create filtered MCP tools that sanitize arguments for booking operations
-  private createFilteredMcpTools(rawMcpTools: any) {
-    const filteredTools: any = {};
+  // private createFilteredMcpTools(rawMcpTools: any) {
+  //   const filteredTools: any = {};
 
-    // Fields that cause issues with the MCP booking API
-    const problematicFields = ["salesrep", "equipmentDescription"];
+  //   // Fields that cause issues with the MCP booking API
+  //   const problematicFields = ["salesrep", "equipmentDescription"];
 
-    for (const [toolName, tool] of Object.entries(rawMcpTools)) {
-      if (
-        typeof tool === "object" &&
-        tool !== null &&
-        "execute" in tool &&
-        (toolName.includes("createBooking") ||
-          toolName.includes("updateBooking"))
-      ) {
-        // Create a wrapper for booking tools that filters arguments
-        const originalTool = tool as any;
-        filteredTools[toolName] = {
-          ...originalTool,
-          execute: async (args: any) => {
-            console.log(
-              "🔧 Original booking args:",
-              JSON.stringify(args, null, 2)
-            );
+  //   for (const [toolName, tool] of Object.entries(rawMcpTools)) {
+  //     if (
+  //       typeof tool === "object" &&
+  //       tool !== null &&
+  //       "execute" in tool &&
+  //       (toolName.includes("createBooking") ||
+  //         toolName.includes("updateBooking"))
+  //     ) {
+  //       // Create a wrapper for booking tools that filters arguments
+  //       const originalTool = tool as any;
+  //       filteredTools[toolName] = {
+  //         ...originalTool,
+  //         execute: async (args: any) => {
+  //           console.log(
+  //             "🔧 Original booking args:",
+  //             JSON.stringify(args, null, 2)
+  //           );
 
-            // Store original args for UI display
-            const originalArgs = { ...args };
+  //           // Store original args for UI display
+  //           const originalArgs = { ...args };
 
-            // Filter out problematic fields for MCP API call
-            const filteredArgs = { ...args };
-            problematicFields.forEach((field) => {
-              if (field in filteredArgs) {
-                console.log(`🗑️ Filtering out ${field} from MCP API call`);
-                delete filteredArgs[field];
-              }
-            });
+  //           // Filter out problematic fields for MCP API call
+  //           const filteredArgs = { ...args };
+  //           problematicFields.forEach((field) => {
+  //             if (field in filteredArgs) {
+  //               console.log(`🗑️ Filtering out ${field} from MCP API call`);
+  //               delete filteredArgs[field];
+  //             }
+  //           });
 
-            console.log(
-              "✅ Filtered booking args:",
-              JSON.stringify(filteredArgs, null, 2)
-            );
+  //           console.log(
+  //             "✅ Filtered booking args:",
+  //             JSON.stringify(filteredArgs, null, 2)
+  //           );
 
-            try {
-              // Call original tool with filtered args
-              const result = await originalTool.execute(filteredArgs);
+  //           try {
+  //             // Call original tool with filtered args
+  //             const result = await originalTool.execute(filteredArgs);
 
-              // Attach original args to result for UI component access
-              if (result && typeof result === "object") {
-                result._originalArgs = originalArgs;
-              }
+  //             // Attach original args to result for UI component access
+  //             if (result && typeof result === "object") {
+  //               result._originalArgs = originalArgs;
+  //             }
 
-              return result;
-            } catch (error) {
-              console.error("❌ Error in filtered MCP tool execution:", error);
-              // Return error with original args attached for UI context
-              return {
-                error: error instanceof Error ? error.message : "Unknown error",
-                _originalArgs: originalArgs,
-              };
-            }
-          },
-        };
-      } else {
-        // Non-booking tools pass through unchanged
-        filteredTools[toolName] = tool;
-      }
-    }
+  //             return result;
+  //           } catch (error) {
+  //             console.error("❌ Error in filtered MCP tool execution:", error);
+  //             // Return error with original args attached for UI context
+  //             return {
+  //               error: error instanceof Error ? error.message : "Unknown error",
+  //               _originalArgs: originalArgs,
+  //             };
+  //           }
+  //         },
+  //       };
+  //     } else {
+  //       // Non-booking tools pass through unchanged
+  //       filteredTools[toolName] = tool;
+  //     }
+  //   }
 
-    return filteredTools;
-  }
+  //   return filteredTools;
+  // }
 
   // Override onError to handle server errors gracefully
   onError(connectionOrError: any, error?: unknown) {
@@ -192,7 +192,7 @@ export class Chat extends AIChatAgent<Env> {
     const rawMcpTools = this.mcp.unstable_getAITools();
 
     // Create filtered MCP tools that remove problematic fields for booking operations
-    const mcpTools = this.createFilteredMcpTools(rawMcpTools);
+    // const mcpTools = this.createFilteredMcpTools(rawMcpTools);
 
     // Collect all prompts from MCP servers
     const mcpPrompts = this.mcp.listPrompts();
@@ -397,7 +397,7 @@ export class Chat extends AIChatAgent<Env> {
     };
 
     const allTools = {
-      ...mcpTools,
+      ...rawMcpTools,
       ...this.usePromptTool,
       ...bookingAnalysisTools,
     };
@@ -436,18 +436,19 @@ export class Chat extends AIChatAgent<Env> {
           ## Booking Creation Workflow
           When user requests "create booking for [Customer] usuals" or similar:
           1. FIRST: Use getRecommendedBooking tool to fetch the customer's booking template with any customizations - this will display the template automatically
-          2. If user did not specify any customer or surgeon, use the getCachedTemplates tool to fetch the cached templates.
-          3. After getRecommendedBooking displays the template, ask if they want to modify anything (times, dates, equipment) before creating the booking
+          2. If user did not specify any customer or surgeon, OR if getRecommendedBooking returns no templates/empty results, use the getCachedTemplates tool to fetch all available cached templates.
+          3. If getRecommendedBooking shows "No Templates Found" or empty results,do not render any UI, immediately follow up with getCachedTemplates to show alternative options
+          4. After getRecommendedBooking displays a valid template, ask if they want to modify anything (times, dates, equipment) before creating the booking
           5. If user specify the date of surgery like tomorrow,next week,next month or next year. Do interpret the date and set the date in the requestBody.
           6. If they confirm or make modifications, use the appropriate MCP createBooking tool with the COMPLETE requestBody from getRecommendedBooking response
           7. CRITICAL: Pass the EXACT requestBody object from getRecommendedBooking response directly to createBooking - do not add, remove, or modify ANY fields  
           8. NEVER create your own request object - ALWAYS use the complete requestBody from getRecommendedBooking AS-IS
-          9. IMPORTANT: Store the customer name and sales rep from getRecommendedBooking template data to enrich the createBooking result display
           9. DO NOT add any additional fields like poNumber, telephone, bookingStatus, releaseDate, estimatedValue - use ONLY what's in the requestBody
-          10. The requestBody from getRecommendedBooking includes ALL required fields: customerId, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
-          11. Proceed with simulation true and return the booking creation result to the user, do include status of isAvaliable 
-          12. Inform customer about isAvailable and would like to proceed with booking simulation false?
-          13. IMPORTANT: After booking operations (create/update), the BookingOperationResultCard component will display automatically
+          10. The requestBody from getRecommendedBooking includes ALL required fields: customerId,customerName, notes, currency, surgeryType, description, isSimulation, collectionDate, reservationType, surgeryDescription
+          11. Do not forget to include customerName in the requestBody.
+          12. Proceed with simulation true and return the booking creation result to the user, do include status of isAvaliable 
+          13. Inform customer about isAvailable and would like to proceed with booking simulation false?
+          14. IMPORTANT: After booking operations (create/update), the BookingOperationResultCard component will display automatically
 
           ## UI Tool Operations (getCachedTemplates, getRecommendedBooking, createBooking)
           These tools automatically render specialized UI components:
@@ -491,6 +492,11 @@ export class Chat extends AIChatAgent<Env> {
           → Use getRecommendedBooking with customerName="John", surgeryDate="tomorrow" (displays template automatically)
           → Ask for confirmation based on displayed template
           → If confirmed, use createBooking MCP tool with the exact requestBody from getRecommendedBooking response
+          
+          User: "create usuals for Dr Stephen"
+          → Use getRecommendedBooking with surgeon="Dr Stephen" (displays template or "No Templates Found")
+          → If "No Templates Found" or empty results, immediately use getCachedTemplates to show available alternatives
+          → Let user select from available templates
           
           CRITICAL EXAMPLE:
           ✅ CORRECT: Use complete requestBody from getRecommendedBooking

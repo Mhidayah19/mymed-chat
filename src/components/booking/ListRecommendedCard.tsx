@@ -1,4 +1,11 @@
-import { MapPin, Stethoscope, User, CaretDown, CaretUp, Bookmark } from "@phosphor-icons/react";
+import {
+  MapPin,
+  Stethoscope,
+  User,
+  CaretDown,
+  CaretUp,
+  Bookmark,
+} from "@phosphor-icons/react";
 import { useState, useEffect, useRef } from "react";
 
 interface CachedTemplate {
@@ -24,7 +31,7 @@ interface CachedTemplate {
 }
 
 interface ListRecommendedData {
-  type: 'cached-templates' | 'templates';
+  type: "cached-templates" | "templates";
   templates?: CachedTemplate[];
   count?: number;
   status?: string;
@@ -43,48 +50,48 @@ const animationStyles = `
   }
 `;
 
-export const ListRecommendedCard = ({ 
-  data, 
-  rawResult 
-}: { 
+export const ListRecommendedCard = ({
+  data,
+  rawResult,
+}: {
   data?: ListRecommendedData;
   rawResult?: any;
 }) => {
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
-  
+
   // Add animation styles to document head
   useEffect(() => {
-    const styleElement = document.createElement('style');
+    const styleElement = document.createElement("style");
     styleElement.innerHTML = animationStyles;
     document.head.appendChild(styleElement);
-    
+
     return () => {
       if (document.head.contains(styleElement)) {
         document.head.removeChild(styleElement);
       }
     };
   }, []);
-  
+
   // Use raw result if provided, otherwise use parsed data
   const templatesData = rawResult || data;
 
   const toggleCard = (index: number) => {
     const newExpanded = new Set(expandedCards);
-    
+
     if (expandedCards.has(index)) {
       newExpanded.delete(index);
     } else {
       newExpanded.add(index);
     }
-    
+
     setExpandedCards(newExpanded);
   };
-  
+
   if (!templatesData) {
     return <div>No templates data available</div>;
   }
   const templates = templatesData.templates || [];
-  
+
   if (templates.length === 0) {
     return (
       <div className="my-4 p-6 bg-white rounded-2xl border border-gray-200 shadow-sm">
@@ -92,8 +99,12 @@ export const ListRecommendedCard = ({
           <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
             <MapPin className="w-6 h-6 text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">No Templates Found</h3>
-          <p className="text-gray-500 text-sm">No cached booking templates available.</p>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">
+            No Templates Found
+          </h3>
+          <p className="text-gray-500 text-sm">
+            No cached booking templates available.
+          </p>
         </div>
       </div>
     );
@@ -107,20 +118,24 @@ export const ListRecommendedCard = ({
         const frequency = template.frequency || 0;
         const totalBookings = template.totalBookings || 1;
         const confidence = Math.round((frequency / totalBookings) * 100);
-        
-        
+
         return (
-          <div key={index} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
+          <div
+            key={index}
+            className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-200"
+          >
             {/* Compact View - Transforms when expanded */}
-            <div 
+            <div
               className="p-4 cursor-pointer hover:bg-gray-50 transition-colors duration-150"
               onClick={() => toggleCard(index)}
             >
               <div className="flex items-center justify-between">
                 {/* Hospital Icon and Name - Animates to header */}
-                <div className={`flex items-center gap-4 min-w-0 flex-1 transition-all duration-300 ${
-                  isExpanded ? 'transform' : ''
-                }`}>
+                <div
+                  className={`flex items-center gap-4 min-w-0 flex-1 transition-all duration-300 ${
+                    isExpanded ? "transform" : ""
+                  }`}
+                >
                   <div className="min-w-0">
                     {isExpanded && (
                       <div className="flex items-center gap-2 mb-1">
@@ -132,17 +147,23 @@ export const ListRecommendedCard = ({
                         </span>
                       </div>
                     )}
-                    <h3 className={`leading-tight truncate transition-all duration-300 ${
-                      isExpanded 
-                        ? 'text-lg font-semibold text-gray-900' 
-                        : 'text-base font-medium text-gray-900'
-                    }`}>
+                    <h3
+                      className={`leading-tight truncate transition-all duration-300 ${
+                        isExpanded
+                          ? "text-lg font-semibold text-gray-900"
+                          : "text-base font-medium text-gray-900"
+                      }`}
+                    >
                       {template.customer}
-                      {isExpanded && template.customerId && ` (${template.customerId})`}
+                      {isExpanded &&
+                        template.customerId &&
+                        ` (${template.customerId})`}
                     </h3>
                     {!isExpanded && (
                       <p className="text-sm text-gray-600 transition-opacity duration-300">
-                        {template.equipment || template.reservationType || `(${template.customerId})`}
+                        {template.equipment ||
+                          template.reservationType ||
+                          `(${template.customerId})`}
                       </p>
                     )}
                     {isExpanded && template.equipment && (
@@ -157,11 +178,11 @@ export const ListRecommendedCard = ({
                   <div className="hidden md:flex items-center gap-6 flex-shrink-0">
                     <div className="text-sm text-gray-600 text-right">
                       <span className="font-medium">
-                        {template.surgeon || 'N/A'}
+                        {template.surgeon || "N/A"}
                       </span>
                       <span className="text-gray-400 mx-2">•</span>
                       <span className="font-medium">
-                        {template.salesRep || template.salesrep || 'N/A'}
+                        {template.salesRep || template.salesrep || "N/A"}
                       </span>
                     </div>
                   </div>
@@ -169,15 +190,19 @@ export const ListRecommendedCard = ({
 
                 {/* Confidence Score & Expand Button - Morphs to Usage */}
                 <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-                  <div className={`transition-all duration-300 ${
-                    isExpanded 
-                      ? 'text-right' 
-                      : `h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-                          confidence >= 85 ? 'bg-green-100 text-green-700' :
-                          confidence >= 70 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
-                        }`
-                  }`}>
+                  <div
+                    className={`transition-all duration-300 ${
+                      isExpanded
+                        ? "text-right"
+                        : `h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold ${
+                            confidence >= 85
+                              ? "bg-green-100 text-green-700"
+                              : confidence >= 70
+                                ? "bg-yellow-100 text-yellow-700"
+                                : "bg-red-100 text-red-700"
+                          }`
+                    }`}
+                  >
                     {isExpanded ? (
                       <div className="animate-fade-in">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
@@ -192,7 +217,11 @@ export const ListRecommendedCard = ({
                     )}
                   </div>
                   <div className="text-gray-400 transition-transform duration-300">
-                    {isExpanded ? <CaretUp className="w-4 h-4" /> : <CaretDown className="w-4 h-4" />}
+                    {isExpanded ? (
+                      <CaretUp className="w-4 h-4" />
+                    ) : (
+                      <CaretDown className="w-4 h-4" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -221,8 +250,13 @@ export const ListRecommendedCard = ({
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Sales Rep
                         </p>
-                        <p className="text-sm text-gray-900 animate-fade-in" style={{animationDelay: '0.1s'}}>
-                          {template.salesRep || template.salesrep || "Not specified"}
+                        <p
+                          className="text-sm text-gray-900 animate-fade-in"
+                          style={{ animationDelay: "0.1s" }}
+                        >
+                          {template.salesRep ||
+                            template.salesrep ||
+                            "Not specified"}
                         </p>
                       </div>
                     </div>
@@ -243,11 +277,12 @@ export const ListRecommendedCard = ({
                               <p className="text-sm text-gray-900 font-medium">
                                 {item.name || item.materialId || "Unknown Item"}
                               </p>
-                              {item.materialId && item.materialId !== item.name && (
-                                <p className="text-xs text-gray-500 font-mono">
-                                  {item.materialId}
-                                </p>
-                              )}
+                              {item.materialId &&
+                                item.materialId !== item.name && (
+                                  <p className="text-xs text-gray-500 font-mono">
+                                    {item.materialId}
+                                  </p>
+                                )}
                             </div>
                             <span className="text-sm text-gray-600">
                               Qty: {item.quantity}

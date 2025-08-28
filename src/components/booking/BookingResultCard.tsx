@@ -154,7 +154,7 @@ const parseBookingResult = (
       : "Failed to create booking",
     equipment:
       requestBody.equipmentDescription ||
-      booking.description ||
+      requestBody.description ||
       booking.equipmentDescription ||
       "Medical Equipment",
     surgeon:
@@ -162,7 +162,18 @@ const parseBookingResult = (
       booking.surgeryDescription ||
       booking.surgeon ||
       "No specific surgeon",
-    salesRep: requestBody.salesrep || "Not specified",
+    salesRep: requestBody.salesrep || 
+              // Extract sales rep from notes format: "Equipment - Surgeon - SalesRep"
+              (() => {
+                const noteContent = requestBody.notes?.[0]?.noteContent || booking.notes?.[0]?.noteContent;
+                if (noteContent && typeof noteContent === 'string') {
+                  const parts = noteContent.split(' - ');
+                  if (parts.length >= 3) {
+                    return parts[2].trim(); // Third part is sales rep
+                  }
+                }
+                return "Not specified";
+              })(),
     surgeryDate: requestBody.dayOfUse
       ? new Date(requestBody.dayOfUse).toLocaleDateString()
       : booking.dayOfUse
@@ -312,13 +323,8 @@ export const BookingOperationResultCard = ({
 
               <h3 className="text-lg font-semibold text-gray-900 mb-1">
                 {bookingResult.customer}
+                {bookingResult.customerId && ` (${bookingResult.customerId})`}
               </h3>
-
-              {bookingResult.customerId && (
-                <p className="text-sm text-gray-500 mb-2">
-                  Customer ID: {bookingResult.customerId}
-                </p>
-              )}
 
               {bookingResult.equipment && (
                 <p className="text-sm text-gray-600">

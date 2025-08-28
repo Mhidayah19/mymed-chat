@@ -246,19 +246,14 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
       .replace(/\s+/g, "-")
       .replace(/[^A-Z0-9-]/g, "");
 
-    // Generate booking request body using template items or fallback
+    // Use template items if available, otherwise empty array
     const items =
       template.items && template.items.length > 0
         ? template.items.map((item: any) => ({
             quantity: item.quantity || 1,
             materialId: item.materialId || materialId || "UNKNOWN-EQUIPMENT",
           }))
-        : [
-            {
-              quantity: 1,
-              materialId: materialId || "UNKNOWN-EQUIPMENT",
-            },
-          ];
+        : [];
 
     return {
       items,
@@ -267,22 +262,21 @@ export class BookingAnalysisAgent extends Agent<Env, BookingAnalysisState> {
           language: "EN",
           noteContent:
             customizations?.notes ||
-            `${template.equipment} - ${template.surgeon}`,
+            `${template.equipment} - ${template.surgeon} - ${template.salesrep}`,
         },
       ],
       isDraft: customizations?.isDraft !== false, // Default to draft
-      currency: "EUR",
+      currency: "EUR", // Use AI suggestion or default
       customer: template.customerId,
       customerName: template.customer, // Add customer name for richer display
-      customerId: template.customerId, // Also keep customerId explicitly
       salesrep: template.salesrep, // Add back for UI display - will be filtered before MCP call
       dayOfUse: dayOfUse.toISOString(),
       endOfUse: endOfUse.toISOString(),
       description: template.equipment.substring(0, 15), // Truncate to 15 chars max
       equipmentDescription: template.equipment, // Full equipment description
-      surgeryType: "OR",
-      isSimulation: true,
-      reservationType: "01",
+      surgeryType: "OR", // Use AI suggestion or default
+      isSimulation: true, // Allow override, default to true
+      reservationType: template.reservationType || "01", // Use template data first, then AI suggestion
       surgeryDescription: template.surgeon,
     };
   }

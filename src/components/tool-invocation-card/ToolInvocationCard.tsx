@@ -5,7 +5,7 @@ import { Card } from "@/components/card/Card";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { APPROVAL } from "@/shared";
 import { 
-  CachedTemplatesCard, 
+  ListRecommendedCard, 
   RecommendedBookingCard, 
   BookingOperationResultCard
 } from "../booking";
@@ -92,7 +92,7 @@ export function ToolInvocationCard({
     else if (cleanedToolName === "getCachedTemplates") {
       return (
         <div className="w-full">
-          <CachedTemplatesCard rawResult={result} />
+          <ListRecommendedCard rawResult={result} />
         </div>
       );
     }
