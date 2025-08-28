@@ -165,8 +165,24 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
+  // Session management for conversation persistence
+  const useSession = () => {
+    const [sessionId] = useState(() => {
+      let id = localStorage.getItem('chat-session-id');
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem('chat-session-id', id);
+      }
+      return id;
+    });
+    return sessionId;
+  };
+
+  const sessionId = useSession();
+
   const agent = useAgent({
     agent: "chat",
+    id: sessionId, // Use session ID as the instance ID
   });
 
   const {
