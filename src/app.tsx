@@ -24,6 +24,7 @@ import { Avatar } from "@/components/avatar/Avatar";
 import { Toggle } from "@/components/toggle/Toggle";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { TextShimmer } from "@/components/text/text-shimmer";
+import { AnimatedAiBot } from "@/components/animated-ai-bot/AnimatedAiBot";
 import {
   ChatBookingCard,
   parseBookingInfo,
@@ -268,8 +269,8 @@ export default function Chat() {
   const activeToolName = getActiveToolName();
 
   return (
-    <Theme accentColor="cyan" grayColor="slate" radius="medium" scaling="100%">
-      <div className="h-screen w-full flex flex-col bg-fixed overflow-hidden bg-white dark:bg-gray-950">
+    <Theme accentColor="cyan" grayColor="slate" radius="medium" scaling="100%" style={{ background: 'transparent' }}>
+      <div className="h-screen w-full flex flex-col bg-fixed overflow-hidden bg-transparent dark:bg-gray-950">
         <HasOpenAIKey />
 
       {/* Layout Container */}
@@ -403,7 +404,7 @@ export default function Chat() {
           className={`flex-1 flex flex-col h-full max-h-screen overflow-hidden ${!drawerOpen ? "lg:ml-0" : "lg:ml-64"}`}
         >
           {/* Header */}
-          <div className="h-16 px-4 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800">
+          <div className="h-16 px-4 flex items-center justify-between">
             <div className="flex items-center">
               <Button
                 variant="ghost"
@@ -432,63 +433,13 @@ export default function Chat() {
                 <Trash size={18} />
               </Button>
             </div>
-          </div>
-
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4 sm:space-y-6 pb-20 sm:pb-24" style={{ background: 'var(--color-chat-bg)' }}>
-            <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+            </div>
+            
+            <div className="h-full overflow-y-auto p-2 sm:p-4 space-y-4 sm:space-y-6 pb-20 sm:pb-24" style={{ background: 'var(--color-chat-bg)' }}>
+              <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
               {agentMessages.length === 0 && !isLoading && (
-                <div className="h-full flex items-center justify-center pt-20">
-                  <Card className="p-6 sm:p-8 max-w-[90%] sm:max-w-md mx-auto bg-white dark:bg-neutral-900 border border-neutral-400 dark:border-neutral-600">
-                    <div className="text-center space-y-5">
-                      <div className="bg-[rgb(0,104,120)]/10 text-[rgb(0,104,120)] rounded-full p-3 inline-flex mx-auto mb-2">
-                        <Robot weight="duotone" size={24} />
-                      </div>
-                      <h3 className="font-semibold text-lg sm:text-xl text-[rgb(0,104,120)]">
-                        <TextShimmer duration={2}>
-                          Welcome to Mymediset Agent
-                        </TextShimmer>
-                      </h3>
-                      <p className="text-muted-foreground text-sm mx-auto max-w-xs">
-                        Your personal assistant at your service. Try asking
-                        about:
-                      </p>
-                      <div className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4 mx-auto max-w-xs">
-                        <ul className="text-sm text-left space-y-3">
-                          <li className="flex items-center gap-3 group">
-                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
-                              <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
-                                →
-                              </span>
-                            </span>
-                            <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
-                              Create or update bookings
-                            </span>
-                          </li>
-                          <li className="flex items-center gap-3 group">
-                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
-                              <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
-                                →
-                              </span>
-                            </span>
-                            <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
-                              Track and manage materials
-                            </span>
-                          </li>
-                          <li className="flex items-center gap-3 group">
-                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[rgb(0,104,120)]/10 flex items-center justify-center">
-                              <span className="text-[rgb(0,104,120)] text-xs group-hover:scale-110 transition-transform">
-                                →
-                              </span>
-                            </span>
-                            <span className="text-neutral-700 dark:text-neutral-300 group-hover:text-[rgb(0,104,120)] transition-colors">
-                              Create usual bookings
-                            </span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </Card>
+                <div className="h-full flex items-center justify-center pt-12">
+                  <AnimatedAiBot size={200} />
                 </div>
               )}
 
@@ -803,7 +754,7 @@ export default function Chat() {
                 </div>
               )}
               <div ref={messagesEndRef} />
-            </div>
+              </div>
           </div>
 
           {/* Input Area */}
@@ -812,11 +763,16 @@ export default function Chat() {
               e.preventDefault();
               handleAgentSubmit(e);
             }}
-            className="p-4 sm:p-6 bg-input-background relative"
+            className={`p-4 sm:p-6 bg-transparent relative ${
+              agentMessages.length === 0 && !isLoading 
+                ? 'absolute bottom-1/3 left-0 right-0 transform translate-y-1/2' 
+                : ''
+            }`}
           >
             <div className="relative w-full max-w-4xl mx-auto">
-              <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200 bg-gray-200">
-                <div className="relative flex items-center bg-white rounded-full py-2">
+              <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200"
+                   style={{ background: 'linear-gradient(135deg, #00D4FF 0%, #8B5CF6 100%)' }}>
+                <div className="relative flex items-center bg-ob-btn-secondary-bg rounded-full py-2">
                 {/* AI icon on the left */}
                 <div className="pl-6 pr-4">
                   <img src={aiIcon} alt="AI" className="w-5 h-5 opacity-60" />
