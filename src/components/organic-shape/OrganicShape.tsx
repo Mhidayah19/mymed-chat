@@ -29,7 +29,7 @@ const OrganicShape = ({
   };
 
   const animations = animate
-    ? "animate-pulse hover:scale-110 transition-all duration-500"
+    ? "motion-safe:animate-pulse motion-reduce:animate-none hover:scale-110 transition-all duration-500"
     : "";
 
   const clipPaths = {

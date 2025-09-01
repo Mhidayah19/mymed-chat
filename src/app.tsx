@@ -7,6 +7,15 @@ import { agentFetch } from "agents/client";
 import type { Message } from "@ai-sdk/react";
 import { APPROVAL } from "./shared";
 import type { tools } from "./tools";
+// Server interface for MCP connections (matching McpSettings)
+interface Server {
+  id: string;
+  name: string;
+  url: string;
+  transport: "SSE" | "HTTP";
+  actualUrl: string;
+  connected?: boolean;
+}
 
 // Type for booking templates response
 
@@ -46,6 +55,8 @@ import {
 // New enhanced components
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import McpSettings from "@/components/mcp/McpSettings";
+import AddServerModal from "@/components/mcp/AddServerModal";
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 
 // Icon imports
 import {
@@ -58,6 +69,7 @@ import {
   List,
   X,
   PaperPlaneTilt,
+  Sliders,
 } from "@phosphor-icons/react";
 
 // List of tools that require human confirmation
@@ -122,6 +134,8 @@ export default function Chat() {
   const [showDebug, setShowDebug] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showMcpPanel, setShowMcpPanel] = useState(false);
+  const [showAddMcpDialog, setShowAddMcpDialog] = useState(false);
+  const [servers, setServers] = useState<Server[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
 
@@ -222,6 +236,52 @@ export default function Chat() {
     isLoading && scrollToBottom();
   }, [isLoading, scrollToBottom]);
 
+  // Load MCP servers (same logic as McpSettings)
+  useEffect(() => {
+    const loadConnectedServers = async () => {
+      if (!agent?.host) return; // Wait for agent to be ready
+
+      try {
+        const response = await agentFetch({
+          agent: "chat",
+          host: agent.host,
+          name: "default",
+          path: "list-mcp",
+        });
+
+        if (response.ok) {
+          const result = (await response.json()) as {
+            success?: boolean;
+            servers?: Record<string, any>;
+            error?: string;
+          };
+
+          if (result.success !== false && result.servers) {
+            const backendServers = Object.entries(result.servers || {}).map(
+              ([id, server]: [string, any]) => ({
+                id,
+                name: server.name || "Unknown Server",
+                url: `${server.transport || "SSE"} • ${server.server_url}`,
+                transport: (server.transport || "SSE") as "SSE" | "HTTP",
+                actualUrl: server.server_url,
+                connected: server.state === "ready",
+              })
+            );
+            setServers(backendServers);
+          } else {
+            setServers([]);
+          }
+        } else {
+          setServers([]);
+        }
+      } catch (error) {
+        console.error("❌ Error loading MCP servers:", error);
+      }
+    };
+
+    loadConnectedServers();
+  }, [agent?.host]);
+
   const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
     m.parts?.some(
       (part) =>
@@ -266,15 +326,191 @@ export default function Chat() {
 
   const activeToolName = getActiveToolName();
 
+  // Function to refresh MCP servers (extracted for reuse)
+  const loadConnectedServers = async () => {
+    if (!agent?.host) return;
+
+    try {
+      const response = await agentFetch({
+        agent: "chat",
+        host: agent.host,
+        name: "default",
+        path: "list-mcp",
+      });
+
+      if (response.ok) {
+        const result = (await response.json()) as {
+          success?: boolean;
+          servers?: Record<string, any>;
+          error?: string;
+        };
+
+        if (result.success !== false && result.servers) {
+          const backendServers = Object.entries(result.servers || {}).map(
+            ([id, server]: [string, any]) => ({
+              id,
+              name: server.name || "Unknown Server",
+              url: `${server.transport || "SSE"} • ${server.server_url}`,
+              transport: (server.transport || "SSE") as "SSE" | "HTTP",
+              actualUrl: server.server_url,
+              connected: server.state === "ready",
+            })
+          );
+          setServers(backendServers);
+        } else {
+          setServers([]);
+        }
+      } else {
+        setServers([]);
+      }
+    } catch (error) {
+      console.error("❌ Error loading MCP servers:", error);
+    }
+  };
+
+  // MCP Server Management Functions (copied from McpSettings)
+  const handleAddMcpServer = (newServer: Server) => {
+    const serverWithStatus = {
+      ...newServer,
+      connected: false,
+    };
+    setServers([...servers, serverWithStatus]);
+  };
+
+  const handleDeleteServer = async (serverId: string) => {
+    try {
+      const response = await agentFetch(
+        {
+          agent: "chat",
+          host: agent.host,
+          name: "default",
+          path: "remove-mcp",
+        },
+        {
+          method: "POST",
+          body: JSON.stringify({ serverId }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        setServers(servers.filter((server) => server.id !== serverId));
+      } else {
+        // Still remove from local state even if backend removal failed
+        setServers(servers.filter((server) => server.id !== serverId));
+      }
+    } catch (error) {
+      console.error("❌ Error removing MCP server:", error);
+      // Still remove from local state even if request failed
+      setServers(servers.filter((server) => server.id !== serverId));
+    }
+  };
+
+  const handleConnectServer = async (serverId: string) => {
+    const server = servers.find((s) => s.id === serverId);
+    if (!server) return;
+
+    try {
+      console.log("Connecting to MCP server via backend...");
+
+      const response = await agentFetch(
+        {
+          agent: "chat",
+          host: agent.host,
+          name: "default",
+          path: "add-mcp",
+        },
+        {
+          method: "POST",
+          body: JSON.stringify({ name: server.name, url: server.actualUrl }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        const result = (await response.json()) as {
+          success: boolean;
+          result?: { authUrl?: string };
+          authUrl?: string;
+        };
+        
+        console.log("✅ MCP server connected via backend:", result);
+        
+        // Fix: The authUrl can be directly in result or in result.result
+        const authUrl = (result as any).authUrl || result.result?.authUrl;
+
+        // If OAuth is required, open auth window
+        if (authUrl) {
+          console.log("🔐 OAuth required, opening auth window...");
+          const authWindow = window.open(
+            authUrl,
+            "mcpAuth",
+            "width=600,height=800,resizable=yes,scrollbars=yes,toolbar=yes,menubar=no,location=no,directories=no,status=yes"
+          );
+
+          // Poll for when the OAuth window closes
+          const pollTimer = setInterval(() => {
+            if (authWindow?.closed) {
+              clearInterval(pollTimer);
+              console.log("🔐 OAuth window closed, refreshing server status...");
+              // Refresh server status after OAuth flow
+              setTimeout(() => {
+                loadConnectedServers();
+              }, 1000);
+            }
+          }, 1000);
+        } else {
+          console.log("ℹ️ No OAuth required - direct connection");
+          // Refresh server list immediately
+          setTimeout(() => {
+            loadConnectedServers();
+          }, 500);
+        }
+      } else {
+        const error = (await response.json()) as { error?: string };
+        console.error("❌ Backend failed to connect MCP server:", error);
+      }
+    } catch (error) {
+      console.error("❌ Error connecting to backend:", error);
+    }
+  };
+
+  const handleDisconnectServer = async (serverId: string) => {
+    try {
+      const response = await agentFetch(
+        {
+          agent: "chat",
+          host: agent.host,
+          name: "default",
+          path: "disconnect-mcp",
+        },
+        {
+          method: "POST",
+          body: JSON.stringify({ serverId }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        setServers((prev) =>
+          prev.map((s) => (s.id === serverId ? { ...s, connected: false } : s))
+        );
+      }
+    } catch (error) {
+      console.error("❌ Error disconnecting server:", error);
+    }
+  };
+
   return (
     <Theme accentColor="cyan" grayColor="slate" radius="medium" scaling="100%" style={{ background: 'transparent' }}>
-      <div className="h-screen w-full flex flex-col bg-fixed overflow-hidden relative" style={{ background: 'var(--color-background-primary)' }}>
+      <div className="h-screen w-full flex flex-col overflow-hidden relative" style={{ background: 'var(--color-background-primary)' }}>
         <HasOpenAIKey />
         
         {/* Organic Shape Background Elements */}
-        <OrganicShape variant="petal" size="xl" className="top-20 right-10 opacity-30" />
-        {/* <OrganicShape variant="blob" size="lg" className="bottom-32 left-16 opacity-20" /> */}
-        <OrganicShape variant="crystal" size="md" className="top-1/2 right-1/3 opacity-25" />
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <OrganicShape variant="petal" size="xl" className="hidden sm:block absolute top-20 right-10 opacity-30" />
+          <OrganicShape variant="crystal" size="md" className="hidden sm:block absolute top-1/2 right-1/3 opacity-25" />
+        </div>
 
       {/* Layout Container */}
       <div className="flex flex-1 h-full overflow-hidden relative z-10">
@@ -339,8 +575,8 @@ export default function Chat() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    shape="square"
-                    className="rounded-full h-6 w-6"
+                    shape="circular"
+                    className="h-6 w-6"
                     onClick={() => setShowMcpPanel(!showMcpPanel)}
                   >
                     <Gear size={14} />
@@ -366,12 +602,10 @@ export default function Chat() {
 
         {/* Main Content Area */}
         <div
-          className={`flex-1 flex flex-col h-full max-h-screen bg-transparent ${
-            agentMessages.length === 0 && !isLoading ? 'overflow-hidden' : 'overflow-y-auto'
-          } ${!drawerOpen ? "lg:ml-0" : "lg:ml-64"}`}
+          className={`flex-1 flex flex-col h-full bg-transparent ${!drawerOpen ? "lg:ml-0" : "lg:ml-64"}`}
         >
           {/* Header */}
-          <header className="sticky top-0 z-40 w-full bg-white shadow-sm h-16 px-4 flex items-center justify-between">
+          <header className="flex-shrink-0 w-full bg-white shadow-sm h-16 px-4 flex items-center justify-between z-40">
             <div className="flex items-center">
               <Button
                 variant="ghost"
@@ -400,20 +634,206 @@ export default function Chat() {
                 <Trash size={18} />
               </Button>
             </div>
-            </header>
+          </header>
             
-            <div className="flex-1 px-2 sm:px-4 py-2 sm:py-4 space-y-4 sm:space-y-6 bg-white">
-              <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-              {agentMessages.length === 0 && !isLoading && (
-                <div className="h-full flex flex-col items-center justify-center pt-12 relative">
-                  <AnimatedAiBot size={200} />
-                   <OrganicShape variant="petal" size="lg" className="top-10 right-20 opacity-40" />
-                  <OrganicShape variant="crystal" size="md" className="bottom-10 left-10 opacity-30" />
-                  
+          {/* Scrollable Content Area - from header to form */}
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 dark:hover:scrollbar-thumb-gray-500 bg-white">
+            {agentMessages.length === 0 && !isLoading ? (
+              /* Welcome Mode - Center everything together */
+              <div className="h-full flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 relative -mt-8">
+              {/* Welcome Content */}
+              <div className="mb-8">
+                <AnimatedAiBot />
+                <OrganicShape variant="petal" size="lg" className="hidden sm:block absolute top-10 right-20 opacity-40" />
+                <OrganicShape variant="crystal" size="md" className="hidden md:block absolute bottom-10 left-10 opacity-30" />
+              </div>
+                
+                {/* Centered Input Area */}
+                <div className="w-full max-w-4xl">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleAgentSubmit(e);
+                    }}
+                    className="w-full"
+                  >
+                    <div className="relative w-full">
+                      <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200"
+                           style={{ background: 'linear-gradient(135deg, #00D4FF 0%, #8B5CF6 100%)' }}>
+                        <div className="relative flex items-center bg-ob-btn-secondary-bg rounded-full py-2">
+                          {/* AI icon on the left */}
+                          <div className="pl-6 pr-4">
+                            <img src={aiIcon} alt="AI" className="w-5 h-5 opacity-60" />
+                          </div>
+                          
+                          <Input
+                            disabled={pendingToolCallConfirmation || isLoading}
+                            placeholder="Ask anything"
+                            className="flex-1 bg-transparent border-0 h-16 text-lg px-0
+                              focus:outline-none focus:ring-0 focus:border-0
+                              file:border-0 file:bg-transparent file:text-base file:font-medium
+                              placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={agentInput}
+                            onChange={handleAgentInputChange}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleAgentSubmit(e as unknown as React.FormEvent);
+                              }
+                            }}
+                            onValueChange={undefined}
+                            spellCheck="false"
+                            autoCapitalize="off"
+                            autoCorrect="off"
+                            autoComplete="off"
+                            inputMode="search"
+                            enterKeyHint="search"
+                            aria-label="Ask anything"
+                          />
+                          
+                          <div className="flex items-center gap-2 mr-3">
+                            <DropdownMenuPrimitive.Root>
+                              <DropdownMenuPrimitive.Trigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  shape="circular"
+                                  className="h-9 w-9 rounded-full"
+                                  aria-label="MCP Control Panel"
+                                  style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(139, 92, 246, 0.2) 100%)'}}
+                                >
+                                  <Sliders size={16} />
+                                </Button>
+                              </DropdownMenuPrimitive.Trigger>
+                              <DropdownMenuPrimitive.Portal>
+                                <DropdownMenuPrimitive.Content
+                                  align="end"
+                                  side="top"
+                                  className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-xl p-1 text-base font-medium text-neutral-900 dark:text-white z-50"
+                                >
+                                  <DropdownMenuPrimitive.Label className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">MCP Connections</DropdownMenuPrimitive.Label>
+                                  <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
+                                  {servers.length === 0 && (
+                                    <span className="p-3 text-neutral-500 dark:text-neutral-400 text-sm select-none text-center w-full">
+                                      No MCP servers available.
+                                    </span>
+                                  )}
+                                  {servers.map((server) => (
+                                    <DropdownMenuPrimitive.Item
+                                      key={server.id}
+                                      className="flex items-center justify-between w-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors p-2 rounded-md cursor-pointer"
+                                    >
+                                      <div className="flex items-center gap-2 w-full">
+                                        <span className="flex items-center justify-center w-6 h-6 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold text-xs border border-neutral-200 dark:border-neutral-700 mr-2">
+                                          {(server.name || server.url).charAt(0).toUpperCase()}
+                                        </span>
+                                        <div className="flex flex-col">
+                                          <span className="text-base text-neutral-900 dark:text-neutral-50">
+                                            {server.name || server.url}
+                                          </span>
+                                          <span
+                                            className={`text-xs font-medium lowercase tracking-wide align-middle mt-0.5 ${
+                                              server.connected
+                                                ? "text-green-600 dark:text-green-400"
+                                                : "text-red-600 dark:text-red-400"
+                                            }`}
+                                          >
+                                            {server.connected ? "ready" : "disconnected"}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        {!server.connected ? (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            shape="square"
+                                            className="rounded-full h-6 w-6 text-gray-400 hover:text-green-500"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              e.preventDefault();
+                                              handleConnectServer(server.id);
+                                            }}
+                                            aria-label="Connect to server"
+                                          >
+                                            ▶
+                                          </Button>
+                                        ) : (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            shape="square"
+                                            className="rounded-full h-6 w-6 text-gray-400 hover:text-red-500"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              e.preventDefault();
+                                              handleDisconnectServer(server.id);
+                                            }}
+                                            aria-label="Disconnect from server"
+                                          >
+                                            ⏸
+                                          </Button>
+                                        )}
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          shape="square"
+                                          className="rounded-full h-6 w-6"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            handleDeleteServer(server.id);
+                                          }}
+                                          aria-label="Remove MCP Server"
+                                        >
+                                          <Trash size={14} />
+                                        </Button>
+                                      </div>
+                                    </DropdownMenuPrimitive.Item>
+                                  ))}
+                                  <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
+                                  <DropdownMenuPrimitive.Item
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setShowAddMcpDialog(true);
+                                    }}
+                                    onSelect={(e) => e.preventDefault()}
+                                    className="bg-primary/5 text-primary rounded-lg font-semibold px-3 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
+                                  >
+                                    + Add MCP Server
+                                  </DropdownMenuPrimitive.Item>
+                                </DropdownMenuPrimitive.Content>
+                              </DropdownMenuPrimitive.Portal>
+                            </DropdownMenuPrimitive.Root>
+                            <button
+                              type="submit"
+                              className="inline-flex items-center justify-center h-9 w-9 rounded-full
+                                transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed 
+                                text-black hover:opacity-90
+                                focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-1"
+                              style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}
+                              title="Send message"
+                              disabled={
+                                pendingToolCallConfirmation ||
+                                isLoading ||
+                                !agentInput.trim()
+                              }
+                            >
+                              <PaperPlaneTilt size={18} className="rotate-45" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </form>
                 </div>
-              )}
-
-              {agentMessages.map((m: Message, index) => {
+              </div>
+            ) : (
+              /* Messages Mode - Content within scrollable area */
+              <div className="px-2 sm:px-4 py-2 sm:py-4">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="space-y-4 sm:space-y-6 py-4">
+                      {agentMessages.map((m: Message, index) => {
                 const isUser = m.role === "user";
                 // const isLastMessage = index === agentMessages.length - 1;
                 // // Check if this is a user message followed by an agent message
@@ -707,94 +1127,214 @@ export default function Chat() {
                     </div>
                   </div>
                 );
-              })}
-              {/* Loading animation showing active tool or just "Thinking..." */}
-              {isLoading && (
-                <div className="flex justify-start mt-2 mb-4">
-                  <div className="w-full max-w-[98%] pl-2">
-                    <TextShimmer
-                      className="text-base font-medium"
-                      duration={1.5}
-                    >
-                      {activeToolName
-                        ? `Using ${activeToolName}...`
-                        : "Thinking..."}
-                    </TextShimmer>
+                      })}
+                      
+                      {/* Loading animation showing active tool or just "Thinking..." */}
+                      {isLoading && (
+                        <div className="flex justify-start mt-2 mb-4">
+                          <div className="w-full max-w-[98%] pl-2">
+                            <TextShimmer
+                              className="text-base font-medium"
+                              duration={1.5}
+                            >
+                              {activeToolName
+                                ? `Using ${activeToolName}...`
+                                : "Thinking..."}
+                            </TextShimmer>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+                    {/* Spacer for floating input area */}
+                    <div className="h-32 sm:h-36" />
                   </div>
                 </div>
               )}
-              <div ref={messagesEndRef} />
-            </div>
           </div>
-
-          {/* Input Area */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleAgentSubmit(e);
-            }}
-            className={`sticky bottom-0 z-30 w-full p-4 sm:p-6 ${
-              agentMessages.length === 0 && !isLoading 
-                ? 'absolute bottom-1/3 left-0 right-0 transform translate-y-1/2 bg-transparent' 
-                : 'bg-gradient-to-b from-transparent via-white/50 to-white'
-            }`}
-          >
-            <div className="relative w-full max-w-4xl mx-auto">
-              <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200"
-                   style={{ background: 'linear-gradient(135deg, #00D4FF 0%, #8B5CF6 100%)' }}>
-                <div className="relative flex items-center bg-ob-btn-secondary-bg rounded-full py-2">
-                {/* AI icon on the left */}
-                <div className="pl-6 pr-4">
-                  <img src={aiIcon} alt="AI" className="w-5 h-5 opacity-60" />
-                </div>
-                
-              <Input
-                disabled={pendingToolCallConfirmation || isLoading}
-                placeholder="Ask anything"
-                  className="flex-1 bg-transparent border-0 h-16 text-lg px-0
-                    focus:outline-none focus:ring-0 focus:border-0
-                    file:border-0 file:bg-transparent file:text-base file:font-medium
-                    placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
-                value={agentInput}
-                onChange={handleAgentInputChange}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleAgentSubmit(e as unknown as React.FormEvent);
-                  }
+          
+          {(agentMessages.length > 0 || isLoading) && (
+            <div className={`fixed bottom-0 left-0 right-0 z-40 p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-transparent ${drawerOpen ? 'lg:left-64' : ''}`}>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAgentSubmit(e);
                 }}
-                onValueChange={undefined}
-                  spellCheck="false"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  autoComplete="off"
-                  inputMode="search"
-                  enterKeyHint="search"
-                  aria-label="Ask anything"
-              />
-                
-                <button
-                type="submit"
-                  className="mr-3 inline-flex items-center justify-center h-9 w-9 rounded-full
-                    transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed 
-                    text-black hover:opacity-90
-                    focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-1"
-                  style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}
-                  title="Send message"
-                disabled={
-                  pendingToolCallConfirmation ||
-                  isLoading ||
-                  !agentInput.trim()
-                }
+                className="w-full"
               >
-                  <PaperPlaneTilt size={18} className="rotate-45" />
-                </button>
+                <div className="relative w-full max-w-4xl mx-auto">
+                  <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200"
+                       style={{ background: 'linear-gradient(135deg, #00D4FF 0%, #8B5CF6 100%)' }}>
+                    <div className="relative flex items-center bg-ob-btn-secondary-bg rounded-full py-2">
+                      {/* AI icon on the left */}
+                      <div className="pl-6 pr-4">
+                        <img src={aiIcon} alt="AI" className="w-5 h-5 opacity-60" />
+                      </div>
+
+                      <Input
+                        disabled={pendingToolCallConfirmation || isLoading}
+                        placeholder="Ask anything"
+                        className="flex-1 bg-transparent border-0 h-16 text-lg px-0
+                          focus:outline-none focus:ring-0 focus:border-0
+                          file:border-0 file:bg-transparent file:text-base file:font-medium
+                          placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        value={agentInput}
+                        onChange={handleAgentInputChange}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleAgentSubmit(e as unknown as React.FormEvent);
+                          }
+                        }}
+                        onValueChange={undefined}
+                        spellCheck="false"
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        autoComplete="off"
+                        inputMode="search"
+                        enterKeyHint="search"
+                        aria-label="Ask anything"
+                      />
+
+                      <div className="flex items-center gap-2 mr-3">
+                        <DropdownMenuPrimitive.Root>
+                          <DropdownMenuPrimitive.Trigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              shape="circular"
+                              className="h-9 w-9 rounded-full"
+                              aria-label="MCP Control Panel"
+                              style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(139, 92, 246, 0.2) 100%)'}}
+                            >
+                              <Sliders size={16} />
+                            </Button>
+                          </DropdownMenuPrimitive.Trigger>
+                          <DropdownMenuPrimitive.Portal>
+                            <DropdownMenuPrimitive.Content
+                              align="end"
+                              side="top"
+                              className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-xl p-1 text-base font-medium text-neutral-900 dark:text-white z-50"
+                            >
+                              <DropdownMenuPrimitive.Label className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">MCP Connections</DropdownMenuPrimitive.Label>
+                              <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
+                              {servers.length === 0 && (
+                                <span className="p-3 text-neutral-500 dark:text-neutral-400 text-sm select-none text-center w-full">
+                                  No MCP servers available.
+                                </span>
+                              )}
+                              {servers.map((server) => (
+                                <DropdownMenuPrimitive.Item
+                                  key={server.id}
+                                  className="flex items-center justify-between w-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors p-2 rounded-md cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    <span className="flex items-center justify-center w-6 h-6 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold text-xs border border-neutral-200 dark:border-neutral-700 mr-2">
+                                      {(server.name || server.url).charAt(0).toUpperCase()}
+                                    </span>
+                                    <div className="flex flex-col">
+                                      <span className="text-base text-neutral-900 dark:text-neutral-50">
+                                        {server.name || server.url}
+                                      </span>
+                                      <span
+                                        className={`text-xs font-medium lowercase tracking-wide align-middle mt-0.5 ${
+                                          server.connected
+                                            ? "text-green-600 dark:text-green-400"
+                                            : "text-red-600 dark:text-red-400"
+                                        }`}
+                                      >
+                                        {server.connected ? "ready" : "disconnected"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {!server.connected ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        shape="square"
+                                        className="rounded-full h-6 w-6 text-gray-400 hover:text-green-500"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          handleConnectServer(server.id);
+                                        }}
+                                        aria-label="Connect to server"
+                                      >
+                                        ▶
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        shape="square"
+                                        className="rounded-full h-6 w-6 text-gray-400 hover:text-red-500"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          handleDisconnectServer(server.id);
+                                        }}
+                                        aria-label="Disconnect from server"
+                                      >
+                                        ⏸
+                                      </Button>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      shape="square"
+                                      className="rounded-full h-6 w-6"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        handleDeleteServer(server.id);
+                                      }}
+                                      aria-label="Remove MCP Server"
+                                    >
+                                      <Trash size={14} />
+                                    </Button>
+                                  </div>
+                                </DropdownMenuPrimitive.Item>
+                              ))}
+                              <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
+                              <DropdownMenuPrimitive.Item
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setShowAddMcpDialog(true);
+                                }}
+                                onSelect={(e) => e.preventDefault()}
+                                className="bg-primary/5 text-primary rounded-lg font-semibold px-3 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
+                              >
+                                + Add MCP Server
+                              </DropdownMenuPrimitive.Item>
+                            </DropdownMenuPrimitive.Content>
+                          </DropdownMenuPrimitive.Portal>
+                        </DropdownMenuPrimitive.Root>
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center h-9 w-9 rounded-full
+                            transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed 
+                            text-black hover:opacity-90
+                            focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-1"
+                          style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}
+                          title="Send message"
+                          disabled={
+                            pendingToolCallConfirmation ||
+                            isLoading ||
+                            !agentInput.trim()
+                          }
+                        >
+                          <PaperPlaneTilt size={18} className="rotate-45" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </form>
             </div>
-          </form>
-        </div>
-      </div>
+          )}
+    </div>
+  </div>
 
       {/* MCP Settings Panel - positioned as an overlay when showMcpPanel is true */}
       {showMcpPanel && (
@@ -834,7 +1374,14 @@ export default function Chat() {
           </div>
         </div>
       )}
-    </div>
+
+      {/* Add MCP Server Modal */}
+      <AddServerModal
+        isOpen={showAddMcpDialog}
+        onClose={() => setShowAddMcpDialog(false)}
+        onAddServer={handleAddMcpServer}
+      />
+      </div>
     </Theme>
   );
 }
@@ -912,3 +1459,5 @@ function HasOpenAIKey() {
   }
   return null;
 }
+
+

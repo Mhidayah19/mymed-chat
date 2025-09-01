@@ -30,11 +30,11 @@ export function AnimatedAiBot({ size = 160 }: { size?: number }) {
       <div className="relative" style={{ width: size, height: size }}>
         {/* Outer energy rings */}
         <div
-          className="absolute inset-0 rounded-full border-2 border-accent/20 animate-spin"
+          className="absolute inset-0 rounded-full border-2 border-accent/20 motion-safe:animate-spin motion-reduce:animate-none"
           style={{ animationDuration: "8s" }}
         />
         <div
-          className="absolute inset-2 rounded-full border border-accent/30 animate-spin"
+          className="absolute inset-2 rounded-full border border-accent/30 motion-safe:animate-spin motion-reduce:animate-none"
           style={{ animationDuration: "6s", animationDirection: "reverse" }}
         />
 
@@ -49,13 +49,13 @@ export function AnimatedAiBot({ size = 160 }: { size?: number }) {
           <div className="absolute inset-3 bg-gradient-to-b from-background to-muted rounded-full flex flex-col items-center justify-center">
             {/* Antenna */}
             <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-              <div className="w-1 h-4 bg-[#00D4FF] rounded-full animate-pulse" />
-              <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-[#00D4FF]/60 rounded-full animate-ping" />
+              <div className="w-1 h-4 bg-[#00D4FF] rounded-full motion-safe:animate-pulse motion-reduce:animate-none" />
+              <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-[#00D4FF]/60 rounded-full motion-safe:animate-ping motion-reduce:animate-none" />
             </div>
 
             {/* Central Robot Icon - Large and Centered */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-[rgb(0,104,120)]/10 text-[rgb(0,104,120)] rounded-full p-3 animate-pulse">
+              <div className="bg-[rgb(0,104,120)]/10 text-[rgb(0,104,120)] rounded-full p-3 motion-safe:animate-pulse motion-reduce:animate-none">
                 <Robot
                   weight="duotone"
                   size={Math.max(size * 0.35, 60)}
@@ -69,7 +69,7 @@ export function AnimatedAiBot({ size = 160 }: { size?: number }) {
               {[...Array(3)].map((_, i) => (
                 <div
                   key={i}
-                  className={`w-1.5 h-1.5 rounded-full animate-pulse transition-all duration-300 ${
+                  className={`w-1.5 h-1.5 rounded-full motion-safe:animate-pulse motion-reduce:animate-none transition-all duration-300 ${
                     eyeState === "scan" ? "bg-[#00D4FF]" : "bg-[rgb(0,104,120)]"
                   }`}
                   style={{
@@ -86,7 +86,7 @@ export function AnimatedAiBot({ size = 160 }: { size?: number }) {
                 {[...Array(3)].map((_, i) => (
                   <div
                     key={i}
-                    className="w-1 h-1 bg-accent rounded-full animate-bounce"
+                    className="w-1 h-1 bg-accent rounded-full motion-safe:animate-bounce motion-reduce:animate-none"
                     style={{ animationDelay: `${i * 0.2}s` }}
                   />
                 ))}
@@ -99,7 +99,7 @@ export function AnimatedAiBot({ size = 160 }: { size?: number }) {
         {[...Array(6)].map((_, i) => (
           <div
             key={i}
-            className="absolute w-1 h-1 bg-accent/40 rounded-full animate-ping"
+            className="absolute w-1 h-1 bg-accent/40 rounded-full motion-safe:animate-ping motion-reduce:animate-none"
             style={{
               top: `${20 + Math.sin(i * 60) * 30}%`,
               left: `${20 + Math.cos(i * 60) * 30}%`,
@@ -111,7 +111,7 @@ export function AnimatedAiBot({ size = 160 }: { size?: number }) {
 
         {/* Holographic effect */}
         <div
-          className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-accent/5 to-transparent animate-pulse"
+          className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-accent/5 to-transparent motion-safe:animate-pulse motion-reduce:animate-none"
           style={{ animationDuration: "4s" }}
         />
       </div>
