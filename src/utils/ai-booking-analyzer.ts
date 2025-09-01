@@ -45,9 +45,14 @@ const BookingAnalysisSchema = z.object({
         estimatedDate: z.string(),
         notes: z.string(),
         priority: z.enum(["high", "medium", "low"]),
-        currency: z.string().optional().describe("Currency code based on customer's region"),
-        surgeryType: z.string().optional().describe("Surgery type based on equipment pattern (OR, ICU, etc)"),
-
+        currency: z
+          .string()
+          .optional()
+          .describe("Currency code based on customer's region"),
+        surgeryType: z
+          .string()
+          .optional()
+          .describe("Surgery type based on equipment pattern (OR, ICU, etc)"),
       }),
     })
   ),

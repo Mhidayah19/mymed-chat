@@ -13,7 +13,6 @@ import type { tools } from "./tools";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import mymLogo from "./assets/mymediset_monogram_colour_RGB_AW.svg";
 import aiIcon from "./assets/AI.svg";
 
 // Component imports
@@ -25,6 +24,9 @@ import { Toggle } from "@/components/toggle/Toggle";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { TextShimmer } from "@/components/text/text-shimmer";
 import { AnimatedAiBot } from "@/components/animated-ai-bot/AnimatedAiBot";
+
+// MyMediset Design System Components
+import { OrganicShape } from "@/components/organic-shape/OrganicShape";
 import {
   ChatBookingCard,
   parseBookingInfo,
@@ -42,8 +44,6 @@ import {
 } from "@/components/material/ChatMaterialCard";
 
 // New enhanced components
-import { Textarea } from "@/components/textarea/Textarea";
-import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import McpSettings from "@/components/mcp/McpSettings";
 
@@ -52,13 +52,11 @@ import {
   Bug,
   Gear,
   Moon,
-  PaperPlaneRight,
   Robot,
   Sun,
   Trash,
   List,
   X,
-  Sparkle,
   PaperPlaneTilt,
 } from "@phosphor-icons/react";
 
@@ -270,11 +268,16 @@ export default function Chat() {
 
   return (
     <Theme accentColor="cyan" grayColor="slate" radius="medium" scaling="100%" style={{ background: 'transparent' }}>
-      <div className="h-screen w-full flex flex-col bg-fixed overflow-hidden bg-transparent dark:bg-gray-950">
+      <div className="h-screen w-full flex flex-col bg-fixed overflow-hidden relative" style={{ background: 'var(--color-background-primary)' }}>
         <HasOpenAIKey />
+        
+        {/* Organic Shape Background Elements */}
+        <OrganicShape variant="petal" size="xl" className="top-20 right-10 opacity-30" />
+        {/* <OrganicShape variant="blob" size="lg" className="bottom-32 left-16 opacity-20" /> */}
+        <OrganicShape variant="crystal" size="md" className="top-1/2 right-1/3 opacity-25" />
 
       {/* Layout Container */}
-      <div className="flex flex-1 h-full overflow-hidden">
+      <div className="flex flex-1 h-full overflow-hidden relative z-10">
         {/* Overlay for mobile */}
         {drawerOpen && (
           <div
@@ -345,44 +348,6 @@ export default function Chat() {
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-sm font-medium mb-2">Available Tools</h3>
-                <ul className="space-y-2">
-                  <li className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[rgb(0,104,120)]">•</span>
-                      <span>Booking Management</span>
-                      <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 flex flex-col">
-                        <span>Create</span>
-                        <span>Update</span>
-                        <span>View</span>
-                      </div>
-                    </div>
-                  </li>
-                  <li className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[rgb(0,104,120)]">•</span>
-                      <span>Materials Management</span>
-                      <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 flex flex-col">
-                        <span>Track</span>
-                        <span>View</span>
-                        <span>Update</span>
-                      </div>
-                    </div>
-                  </li>
-                  <li className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[rgb(0,104,120)]">•</span>
-                      <span>Task Scheduling</span>
-                      <div className="ml-auto text-xs text-gray-500 dark:text-gray-400 flex flex-col">
-                        <span>Schedule</span>
-                        <span>View</span>
-                        <span>Cancel</span>
-                      </div>
-                    </div>
-                  </li>
-                </ul>
-              </div>
 
               <div className="pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-800">
                 <Button
@@ -401,10 +366,12 @@ export default function Chat() {
 
         {/* Main Content Area */}
         <div
-          className={`flex-1 flex flex-col h-full max-h-screen overflow-hidden ${!drawerOpen ? "lg:ml-0" : "lg:ml-64"}`}
+          className={`flex-1 flex flex-col h-full max-h-screen bg-transparent ${
+            agentMessages.length === 0 && !isLoading ? 'overflow-hidden' : 'overflow-y-auto'
+          } ${!drawerOpen ? "lg:ml-0" : "lg:ml-64"}`}
         >
           {/* Header */}
-          <div className="h-16 px-4 flex items-center justify-between">
+          <header className="sticky top-0 z-40 w-full bg-white shadow-sm h-16 px-4 flex items-center justify-between">
             <div className="flex items-center">
               <Button
                 variant="ghost"
@@ -415,10 +382,10 @@ export default function Chat() {
               >
                 <List size={20} />
               </Button>
-              <div className="flex items-center">
-                <img src={mymLogo} alt="MYM Logo" className="h-5" />
-                <span className="ml-2 text-lg font-semibold truncate bg-gradient-to-r from-[#00D4FF] to-[#8B5CF6] bg-clip-text text-transparent">
-                  mymediset Agent
+              <div className="flex items-center px-4 py-3">
+                <img src="/favicon.png" alt="MyMediset Logo" className="h-12" />
+                <span className="ml-2 text-lg font-semibold truncate text-black font-pacifico">
+                Agent
                 </span>
               </div>
             </div>
@@ -433,13 +400,16 @@ export default function Chat() {
                 <Trash size={18} />
               </Button>
             </div>
-            </div>
+            </header>
             
-            <div className="h-full overflow-y-auto p-2 sm:p-4 space-y-4 sm:space-y-6 pb-20 sm:pb-24" style={{ background: 'var(--color-chat-bg)' }}>
+            <div className="flex-1 px-2 sm:px-4 py-2 sm:py-4 space-y-4 sm:space-y-6 bg-white">
               <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
               {agentMessages.length === 0 && !isLoading && (
-                <div className="h-full flex items-center justify-center pt-12">
+                <div className="h-full flex flex-col items-center justify-center pt-12 relative">
                   <AnimatedAiBot size={200} />
+                   <OrganicShape variant="petal" size="lg" className="top-10 right-20 opacity-40" />
+                  <OrganicShape variant="crystal" size="md" className="bottom-10 left-10 opacity-30" />
+                  
                 </div>
               )}
 
@@ -484,7 +454,7 @@ export default function Chat() {
                                     <Card
                                       className={`p-3 sm:p-4 rounded-lg w-full ${
                                         isUser
-                                          ? "rounded-br-none bg-[var(--color-chat-user-bubble)] border border-[var(--color-chat-user-border)] text-gray-600"
+                                          ? "rounded-br-none bg-black border border-gray-300 text-white"
                                           : "rounded-bl-none bg-[var(--color-chat-ai-bubble)] border border-[var(--color-chat-ai-border)] text-gray-600 shadow-sm"
                                       } ${
                                         part.text.startsWith(
@@ -754,7 +724,7 @@ export default function Chat() {
                 </div>
               )}
               <div ref={messagesEndRef} />
-              </div>
+            </div>
           </div>
 
           {/* Input Area */}
@@ -763,10 +733,10 @@ export default function Chat() {
               e.preventDefault();
               handleAgentSubmit(e);
             }}
-            className={`p-4 sm:p-6 bg-transparent relative ${
+            className={`sticky bottom-0 z-30 w-full p-4 sm:p-6 ${
               agentMessages.length === 0 && !isLoading 
-                ? 'absolute bottom-1/3 left-0 right-0 transform translate-y-1/2' 
-                : ''
+                ? 'absolute bottom-1/3 left-0 right-0 transform translate-y-1/2 bg-transparent' 
+                : 'bg-gradient-to-b from-transparent via-white/50 to-white'
             }`}
           >
             <div className="relative w-full max-w-4xl mx-auto">
@@ -778,22 +748,22 @@ export default function Chat() {
                   <img src={aiIcon} alt="AI" className="w-5 h-5 opacity-60" />
                 </div>
                 
-                <Input
-                  disabled={pendingToolCallConfirmation || isLoading}
-                  placeholder="Ask anything"
+              <Input
+                disabled={pendingToolCallConfirmation || isLoading}
+                placeholder="Ask anything"
                   className="flex-1 bg-transparent border-0 h-16 text-lg px-0
                     focus:outline-none focus:ring-0 focus:border-0
                     file:border-0 file:bg-transparent file:text-base file:font-medium
                     placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={agentInput}
-                  onChange={handleAgentInputChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleAgentSubmit(e as unknown as React.FormEvent);
-                    }
-                  }}
-                  onValueChange={undefined}
+                value={agentInput}
+                onChange={handleAgentInputChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAgentSubmit(e as unknown as React.FormEvent);
+                  }
+                }}
+                onValueChange={undefined}
                   spellCheck="false"
                   autoCapitalize="off"
                   autoCorrect="off"
@@ -801,22 +771,22 @@ export default function Chat() {
                   inputMode="search"
                   enterKeyHint="search"
                   aria-label="Ask anything"
-                />
+              />
                 
                 <button
-                  type="submit"
+                type="submit"
                   className="mr-3 inline-flex items-center justify-center h-9 w-9 rounded-full
                     transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed 
                     text-black hover:opacity-90
                     focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-1"
                   style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}
                   title="Send message"
-                  disabled={
-                    pendingToolCallConfirmation ||
-                    isLoading ||
-                    !agentInput.trim()
-                  }
-                >
+                disabled={
+                  pendingToolCallConfirmation ||
+                  isLoading ||
+                  !agentInput.trim()
+                }
+              >
                   <PaperPlaneTilt size={18} className="rotate-45" />
                 </button>
                 </div>

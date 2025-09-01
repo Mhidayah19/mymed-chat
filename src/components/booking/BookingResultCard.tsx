@@ -100,46 +100,56 @@ const parseBookingResult = (
 
   // Helper function to check if booking ID is valid (has non-zero digits)
   const isValidBookingId = (id: string) => {
-    if (!id || typeof id !== 'string') return false;
-    const trimmed = id.trim().replace(/^0+/, '');
+    if (!id || typeof id !== "string") return false;
+    const trimmed = id.trim().replace(/^0+/, "");
     return trimmed.length > 0;
   };
 
   // Try different possible locations for booking ID
   const candidates = [
     booking.bookingId,
-    booking.ID, 
+    booking.ID,
     booking.id,
     bookingResultData.bookingId,
     bookingResultData.ID,
-    bookingResultData.id
+    bookingResultData.id,
   ];
 
-  console.log('🔍 All booking ID candidates:', candidates);
+  console.log("🔍 All booking ID candidates:", candidates);
 
   for (const candidate of candidates) {
     if (candidate && isValidBookingId(candidate)) {
       originalBookingId = candidate.trim(); // Keep original for URL
-      bookingId = originalBookingId.replace(/^0+/, ''); // Remove leading zeros for display
-      console.log('✅ Found valid booking ID:', bookingId, '(original:', originalBookingId, ')');
+      bookingId = originalBookingId.replace(/^0+/, ""); // Remove leading zeros for display
+      console.log(
+        "✅ Found valid booking ID:",
+        bookingId,
+        "(original:",
+        originalBookingId,
+        ")"
+      );
       break;
     }
   }
 
-  console.log('📋 Final extracted booking ID:', bookingId);
-  
+  console.log("📋 Final extracted booking ID:", bookingId);
+
   // Debug availability for items from both sources
   if (booking.items?.length > 0) {
-    console.log('🔍 Booking items availability status:');
+    console.log("🔍 Booking items availability status:");
     booking.items.forEach((item: any, index: number) => {
-      console.log(`  Item ${index + 1}: ${item.description || item.materialId} - isAvailable: ${item.isAvailable} (type: ${typeof item.isAvailable})`);
+      console.log(
+        `  Item ${index + 1}: ${item.description || item.materialId} - isAvailable: ${item.isAvailable} (type: ${typeof item.isAvailable})`
+      );
     });
   }
-  
+
   if (requestBody.items?.length > 0) {
-    console.log('🔍 Request items availability status:');
+    console.log("🔍 Request items availability status:");
     requestBody.items.forEach((item: any, index: number) => {
-      console.log(`  Item ${index + 1}: ${item.name || item.materialId} - availability: ${item.availability} (type: ${typeof item.availability})`);
+      console.log(
+        `  Item ${index + 1}: ${item.name || item.materialId} - availability: ${item.availability} (type: ${typeof item.availability})`
+      );
     });
   }
 
@@ -162,18 +172,21 @@ const parseBookingResult = (
       booking.surgeryDescription ||
       booking.surgeon ||
       "No specific surgeon",
-    salesRep: requestBody.salesrep || 
-              // Extract sales rep from notes format: "Equipment - Surgeon - SalesRep"
-              (() => {
-                const noteContent = requestBody.notes?.[0]?.noteContent || booking.notes?.[0]?.noteContent;
-                if (noteContent && typeof noteContent === 'string') {
-                  const parts = noteContent.split(' - ');
-                  if (parts.length >= 3) {
-                    return parts[2].trim(); // Third part is sales rep
-                  }
-                }
-                return "Not specified";
-              })(),
+    salesRep:
+      requestBody.salesrep ||
+      // Extract sales rep from notes format: "Equipment - Surgeon - SalesRep"
+      (() => {
+        const noteContent =
+          requestBody.notes?.[0]?.noteContent ||
+          booking.notes?.[0]?.noteContent;
+        if (noteContent && typeof noteContent === "string") {
+          const parts = noteContent.split(" - ");
+          if (parts.length >= 3) {
+            return parts[2].trim(); // Third part is sales rep
+          }
+        }
+        return "Not specified";
+      })(),
     surgeryDate: requestBody.dayOfUse
       ? new Date(requestBody.dayOfUse).toLocaleDateString()
       : booking.dayOfUse
@@ -254,14 +267,17 @@ export const BookingOperationResultCard = ({
       const baseUrl =
         "https://mymediset-xba-dev-eu10.launchpad.cfapps.eu10.hana.ondemand.com/site?siteId=04bd86f5-c383-41a9-966a-c97d7744a8ea#cloudmymedisetuibookings-manage?sap-ui-app-id-hint=mymediset_cloud.mymediset.uibookings&/Bookings";
       const bookingUrl = `${baseUrl}(${idForUrl})`;
-      console.log('🔗 Opening booking URL with ID:', idForUrl);
+      console.log("🔗 Opening booking URL with ID:", idForUrl);
       window.open(bookingUrl, "_blank");
     }
   };
 
   const getStatusConfig = () => {
     // Check if simulation is true to show "CHECK" status
-    if (bookingResult.simulation === true || bookingResult.simulation === "true") {
+    if (
+      bookingResult.simulation === true ||
+      bookingResult.simulation === "true"
+    ) {
       return {
         icon: <Warning className="w-4 h-4" />,
         textColor: "text-yellow-700",
@@ -269,7 +285,7 @@ export const BookingOperationResultCard = ({
         status: "CHECK",
       };
     }
-    
+
     switch (bookingResult.status) {
       case "success":
         return {
@@ -282,7 +298,7 @@ export const BookingOperationResultCard = ({
         return {
           icon: <XCircle className="w-4 h-4" />,
           textColor: "text-red-700",
-          bgColor: "bg-red-50", 
+          bgColor: "bg-red-50",
           status: "FAILED",
         };
       case "warning":
@@ -311,12 +327,16 @@ export const BookingOperationResultCard = ({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${statusConfig.bgColor}`}>
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center ${statusConfig.bgColor}`}
+                >
                   <div className={statusConfig.textColor}>
                     {statusConfig.icon}
                   </div>
                 </div>
-                <span className={`text-xs font-medium uppercase tracking-wider px-2 py-1 rounded-full ${statusConfig.bgColor} ${statusConfig.textColor}`}>
+                <span
+                  className={`text-xs font-medium uppercase tracking-wider px-2 py-1 rounded-full ${statusConfig.bgColor} ${statusConfig.textColor}`}
+                >
                   {statusConfig.status}
                 </span>
               </div>
@@ -451,19 +471,25 @@ export const BookingOperationResultCard = ({
                         </p>
                       )}
                     </div>
-                    <span className={`text-sm font-medium ${(() => {
-                      console.log(`🎨 Item ${item.name || item.materialId} availability:`, item.availability, typeof item.availability);
-                      if (item.availability === true ) {
-                        console.log('  → Applying GREEN text');
-                        return 'text-green-600';
-                      } else if (item.availability === false) {
-                        console.log('  → Applying RED text');
-                        return 'text-red-600';
-                      } else {
-                        console.log('  → Applying GRAY text (default)');
-                        return 'text-gray-600';
-                      }
-                    })()}`}>
+                    <span
+                      className={`text-sm font-medium ${(() => {
+                        console.log(
+                          `🎨 Item ${item.name || item.materialId} availability:`,
+                          item.availability,
+                          typeof item.availability
+                        );
+                        if (item.availability === true) {
+                          console.log("  → Applying GREEN text");
+                          return "text-green-600";
+                        } else if (item.availability === false) {
+                          console.log("  → Applying RED text");
+                          return "text-red-600";
+                        } else {
+                          console.log("  → Applying GRAY text (default)");
+                          return "text-gray-600";
+                        }
+                      })()}`}
+                    >
                       Qty: {item.quantity}
                     </span>
                   </div>
