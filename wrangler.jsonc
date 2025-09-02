@@ -1,7 +1,8 @@
 {
   "name": "mymediset-chat",
+  "account_id": "e4a9a3d457a8e9a1815e6751b7a2775d",
   "main": "src/server.ts",
-  "compatibility_date": "2025-05-07",
+  "compatibility_date": "2025-02-04",
   "compatibility_flags": [
     "nodejs_compat",
     "nodejs_compat_populate_process_env",
@@ -15,12 +16,26 @@
         "name": "Chat",
         "class_name": "Chat",
       },
+      {
+        "name": "BookingAnalysisAgent",
+        "class_name": "BookingAnalysisAgent",
+      },
     ],
   },
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["Chat"],
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["BookingAnalysisAgent"],
+    },
+  ],
+  "secrets_stores": [
+    {
+      "binding": "GEMINI_API_KEY",
+      "id": "82f4725b0ef54094a243014707166424",
     },
   ],
 }

@@ -1,23 +1,5 @@
 @import "tailwindcss";
 
-/* Markdown Table Styling (Tailwind @apply) */
-.markdown-body table {
-  @apply w-full border-collapse my-4 text-[0.95em];
-}
-.markdown-body th,
-.markdown-body td {
-  @apply border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-left;
-}
-.markdown-body th {
-  @apply bg-neutral-100 dark:bg-neutral-800 font-semibold dark:text-neutral-200;
-}
-.markdown-body tr {
-  @apply dark:text-neutral-300;
-}
-.markdown-body tr:nth-child(even) {
-  @apply bg-neutral-50 dark:bg-neutral-850;
-}
-
 /* Custom variants */
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant interactive (&:where(.interactive, .interactive *));
@@ -72,7 +54,120 @@
   --color-blue-400: oklch(0.707 0.165 254.624);
   --color-blue-800: oklch(0.424 0.199 265.638);
 
+  --color-teal-400: rgb(0, 104, 120);
+  --color-teal-500: rgb(0, 94, 108);
+  --color-teal-600: rgb(0, 84, 96);
+
+  /* Medical Device Typography Scale */
+  --font-size-medical-xs: 0.75rem; /* 12px - Small labels */
+  --font-size-medical-sm: 0.875rem; /* 14px - Table data */
+  --font-size-medical-base: 1rem; /* 16px - Body text */
+  --font-size-medical-lg: 1.125rem; /* 18px - Subheadings */
+  --font-size-medical-xl: 1.25rem; /* 20px - Page titles */
+  --font-size-medical-2xl: 1.5rem; /* 24px - Section headers */
+  --font-size-medical-3xl: 1.875rem; /* 30px - Main headings */
+
   /* Component colors */
+
+  /* MyMediset Design System Colors - From Figma AI Dashboard */
+  --color-tones-black: #000000;
+  --color-obsidian-black: #000000;
+  --color-primary-black: #000000;
+  --color-fintech-green: #c6ff4b;
+
+  /* AI Brand Gradients */
+  --gradient-ai-primary: linear-gradient(135deg, #00d4ff 0%, #8b5cf6 100%);
+  --gradient-ai-secondary: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+  --gradient-ai-accent: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  --gradient-dashboard-bg: linear-gradient(
+    135deg,
+    #f0fdff 0%,
+    #fdf4ff 50%,
+    #f0fff4 100%
+  );
+  --gradient-petal: linear-gradient(
+    135deg,
+    #ff6b6b 0%,
+    #4ecdc4 30%,
+    #45b7d1 60%,
+    #96ceb4 100%
+  );
+  --gradient-fintech: linear-gradient(135deg, #c6ff4b 0%, #00d4ff 100%);
+  --gradient-organic: linear-gradient(
+    120deg,
+    #ff9a9e 0%,
+    #fecfef 25%,
+    #fecfef 50%,
+    #96e6a1 75%,
+    #c6ff4b 100%
+  );
+
+  /* Primary Brand Colors */
+  --color-primary: #00d4ff;
+  --color-primary-50: #f0fdff;
+  --color-primary-100: #ccf7fe;
+  --color-primary-400: #22d3ee;
+  --color-primary-500: #00d4ff;
+  --color-primary-600: #0891b2;
+  --color-primary-700: #0e7490;
+  --color-primary-900: #164e63;
+
+  --color-secondary: #8b5cf6;
+  --color-secondary-50: #fdf4ff;
+  --color-secondary-100: #fae8ff;
+  --color-secondary-400: #c084fc;
+  --color-secondary-500: #8b5cf6;
+  --color-secondary-600: #9333ea;
+  --color-secondary-700: #7c3aed;
+  --color-secondary-900: #581c87;
+
+  /* Medical Analytics Colors */
+  --color-analytics-performance: #10b981;
+  --color-analytics-target: #3b82f6;
+  --color-analytics-warning: #f59e0b;
+  --color-analytics-critical: #ef4444;
+  --color-analytics-info: #8b5cf6;
+
+  /* Medical Specialty Colors */
+  --color-specialty-abdominal-surgery: var(--gradient-ai-primary);
+  --color-specialty-neurosurgery: #374151;
+  --color-specialty-cardiology: #ef4444;
+  --color-specialty-orthopedics: #10b981;
+  --color-specialty-general: #6b7280;
+
+  /* Status Colors for Medical Equipment */
+  --color-status-available: #10b981;
+  --color-status-in-use: #f59e0b;
+  --color-status-maintenance: #ef4444;
+  --color-status-reserved: #8b5cf6;
+
+  /* Background & Surface Colors */
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f8fafc;
+  --color-background-dashboard: var(--gradient-dashboard-bg);
+  --color-background-card: #ffffff;
+  --color-background-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Glassmorphism Effects */
+  --glass-bg-primary: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.24) 9.714%,
+    rgba(230, 230, 230, 0.32) 40.338%,
+    rgba(230, 230, 230, 0.72) 99.99%
+  );
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-backdrop-blur: 25px;
+
+  /* Shadows for AI dashboard components */
+  --shadow-ai-glow: 0 0 20px rgba(0, 212, 255, 0.3);
+  --shadow-glass: 0px 4px 4px 0px rgba(0, 0, 0, 0.05);
+
+  /* Chat colors - Clean White Theme */
+  --color-chat-bg: var(--color-background-secondary);
+  --color-chat-ai-bubble: var(--color-background-card);
+  --color-chat-ai-border: #e5e7eb;
+  --color-chat-user-bubble: var(--color-background-card);
+  --color-chat-user-border: #9ca3af;
 
   /* Base colors */
   --color-ob-base-100: var(--color-white);
@@ -93,10 +188,10 @@
   --text-color-ob-inverted: var(--color-white);
 
   /* ob-btn */
-  --color-ob-btn-primary-bg: var(--color-neutral-750);
-  --color-ob-btn-primary-bg-hover: var(--color-neutral-850);
-  --color-ob-btn-primary-border: var(--color-neutral-500);
-  --color-ob-btn-primary-border-hover: var(--color-neutral-600);
+  --color-ob-btn-primary-bg: var(--color-teal-400);
+  --color-ob-btn-primary-bg-hover: var(--color-teal-500);
+  --color-ob-btn-primary-border: var(--color-teal-500);
+  --color-ob-btn-primary-border-hover: var(--color-teal-600);
 
   --color-ob-btn-secondary-bg: var(--color-white);
   --color-ob-btn-secondary-bg-hover: var(--color-neutral-50);
@@ -111,10 +206,25 @@
   --color-ob-btn-destructive-border-hover: var(--color-red-500);
 
   /* Focus colors */
-  --color-ob-focus: var(--color-blue-400);
+  --color-ob-focus: var(--color-teal-400);
 }
 
 .dark {
+  /* MyMediset Design System - Dark Mode */
+
+  /* Background Colors for Dark Mode */
+  --color-background-primary: var(--color-neutral-950);
+  --color-background-secondary: var(--color-neutral-900);
+  --color-background-card: var(--color-neutral-900);
+  --color-background-overlay: rgba(0, 0, 0, 0.7);
+
+  /* Chat colors - Dark Theme */
+  --color-chat-bg: var(--color-neutral-950);
+  --color-chat-ai-bubble: var(--color-neutral-900);
+  --color-chat-ai-border: var(--color-neutral-800);
+  --color-chat-user-bubble: var(--color-neutral-850);
+  --color-chat-user-border: var(--color-neutral-700);
+
   /* Component colors */
 
   /* Base colors */
@@ -136,10 +246,10 @@
   --text-color-ob-inverted: var(--color-neutral-900);
 
   /* ob-btn */
-  --color-ob-btn-primary-bg: var(--color-neutral-300);
-  --color-ob-btn-primary-bg-hover: var(--color-neutral-250);
-  --color-ob-btn-primary-border: var(--color-neutral-100);
-  --color-ob-btn-primary-border-hover: var(--color-white);
+  --color-ob-btn-primary-bg: var(--color-teal-400);
+  --color-ob-btn-primary-bg-hover: var(--color-teal-500);
+  --color-ob-btn-primary-border: var(--color-teal-500);
+  --color-ob-btn-primary-border-hover: var(--color-teal-600);
 
   --color-ob-btn-secondary-bg: var(--color-neutral-900);
   --color-ob-btn-secondary-bg-hover: var(--color-neutral-850);
@@ -154,7 +264,7 @@
   --color-ob-btn-destructive-border-hover: var(--color-red-600);
 
   /* Focus colors */
-  --color-ob-focus: var(--color-blue-800);
+  --color-ob-focus: var(--color-teal-400);
 }
 
 .btn {
@@ -215,7 +325,9 @@
 
 /* Use for elements that require a tab-focus state (most elements) */
 .add-focus {
-  @apply focus-visible:ring-ob-focus outline-none focus:opacity-100 focus-visible:ring-1 *:in-focus:opacity-100;
+  @apply focus-visible:ring-ob-focus outline-none focus:opacity-100 focus-visible:ring-4 *:in-focus:opacity-100;
+  /* Enhanced focus ring for medical device compliance */
+  @apply focus-visible:ring-cyan-500/50;
 }
 
 /* Use for elements that require a disabled state */
@@ -309,4 +421,169 @@
   to {
     transform: rotate(360deg) scale(0.9);
   }
+}
+
+/* Medical Equipment Status Styling */
+.equipment-status {
+  @apply inline-flex items-center px-2 py-1 rounded-md font-medium text-sm;
+}
+
+/* Screen Reader Only Text for Medical Compliance */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* High Contrast for Medical Data */
+@media (prefers-contrast: high) {
+  .ai-gradient-text {
+    background: none;
+    color: var(--color-tones-black) !important;
+  }
+
+  .glass-card {
+    background: white !important;
+    border: 2px solid black !important;
+  }
+
+  .organic-shape {
+    display: none;
+  }
+}
+
+/* Reduced Motion for Medical Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .organic-shape,
+  .animate-pulse,
+  .hover\:scale-105,
+  .hover\:scale-110,
+  .transition-all {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Focus Indicators for Medical Device Compliance */
+.add-focus {
+  @apply focus-visible:ring-4 focus-visible:ring-cyan-500/50 outline-none;
+}
+
+/* Critical Medical Data Styling */
+.critical-data {
+  color: var(--color-tones-black);
+  background: white;
+  font-weight: 600;
+  border: 2px solid var(--color-analytics-critical);
+}
+
+/* Medical Color-Blind Friendly Status Patterns */
+.equipment-status--available::before {
+  content: "✓";
+  margin-right: 4px;
+  font-weight: bold;
+}
+
+.equipment-status--in-use::before {
+  content: "⏱";
+  margin-right: 4px;
+}
+
+.equipment-status--maintenance::before {
+  content: "⚠";
+  margin-right: 4px;
+  font-weight: bold;
+}
+
+.equipment-status--reserved::before {
+  content: "🔒";
+  margin-right: 4px;
+}
+
+.equipment-status--available {
+  background-color: theme("colors.green.100");
+  color: theme("colors.green.800");
+}
+
+.equipment-status--in-use {
+  background-color: theme("colors.yellow.100");
+  color: theme("colors.yellow.800");
+}
+
+.equipment-status--maintenance {
+  background-color: theme("colors.red.100");
+  color: theme("colors.red.800");
+}
+
+.equipment-status--reserved {
+  background-color: theme("colors.purple.100");
+  color: theme("colors.purple.800");
+}
+
+/* Medical Device Cards */
+.device-card {
+  @apply bg-white border border-gray-200 rounded-lg shadow-sm p-4 transition-all duration-200;
+}
+
+.device-card:hover {
+  @apply shadow-md border-gray-300;
+}
+
+/* AI Components */
+.ai-gradient-text {
+  background: var(--gradient-ai-primary);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Glassmorphism Cards */
+.glass-card {
+  background: var(--glass-bg-primary);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-backdrop-blur));
+  box-shadow: var(--shadow-glass);
+}
+
+/* Organic Shapes */
+.organic-shape {
+  border-radius: 50%;
+  opacity: 0.8;
+  blur: 2px;
+  position: absolute;
+  pointer-events: none;
+}
+
+.organic-shape--petal {
+  background: var(--gradient-petal);
+  clip-path: polygon(
+    40% 0%,
+    70% 20%,
+    100% 40%,
+    80% 70%,
+    60% 100%,
+    30% 80%,
+    0% 60%,
+    20% 30%
+  );
+}
+
+.organic-shape--blob {
+  background: var(--gradient-organic);
+}
+
+.organic-shape--crystal {
+  background: var(--gradient-fintech);
+}
+
+/* Custom Font Classes */
+.font-pacifico {
+  font-family: Pacifico, cursive;
 }

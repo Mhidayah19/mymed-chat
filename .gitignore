@@ -142,3 +142,14 @@ dist
 .wrangler
 .dev.vars
 
+src/App.tsx
+src/components/tool-invocation-card/ToolInvocationCard.tsx
+
+# Project specific
+/.bmad-core/
+/.claude/
+/.cursor/
+/docs/architecture/
+/docs/prd/
+/CLAUDE.md
+/docs/

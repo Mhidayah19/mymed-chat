@@ -1,24 +1,43 @@
 /**
- * Tool definitions for the AI chat agent
+ * Tool definitions for the mymediset chat
  * Tools can either require human confirmation or execute automatically
  */
 import { tool } from "ai";
 import { z } from "zod";
 
-import type { Chat } from "./server";
-import { getCurrentAgent } from "agents";
-import { unstable_scheduleSchema } from "agents/schedule";
+import agentContext from "./server";
+import {
+  unstable_getSchedulePrompt,
+  unstable_scheduleSchema,
+} from "agents/schedule";
 
-/**
- * Weather information tool that requires human confirmation
- * When invoked, this will present a confirmation dialog to the user
- * The actual implementation is in the executions object below
- */
-const getWeatherInformation = tool({
-  description: "show the weather in a given city to the user",
-  parameters: z.object({ city: z.string() }),
-  // Omitting execute function makes this tool require human confirmation
-});
+// Import booking tools from the dedicated file
+import {
+  getBookingInformation,
+  getAllBookings,
+  createBooking,
+  bookingExecutions,
+  getBookingTypes,
+  getCustomers,
+  getShipToAddresses,
+  getMaterials,
+  updateBooking,
+} from "./tools/bookingTools";
+
+// Import user info tools from the dedicated file
+import { getUserLoginStatus, getUserInfo } from "./tools/userInfoTools";
+
+// Import consumption tools from the dedicated file
+import {
+  getConsumptionRequest,
+  getConsumptionRequests,
+  getConsumptionRequestsByStatus,
+  getConsumptionRequestsByCustomer,
+  searchConsumptionRequestsByCaseRef,
+  getConsumptionRequestStatusCodes,
+} from "./tools/consumptionTools";
+
+// Import jira tools from the dedicated file
 
 /**
  * Local time tool that executes automatically
@@ -39,8 +58,10 @@ const scheduleTask = tool({
   parameters: unstable_scheduleSchema,
   execute: async ({ when, description }) => {
     // we can now read the agent context from the ALS store
-    const { agent } = getCurrentAgent<Chat>();
-
+    const agent = agentContext.getStore();
+    if (!agent) {
+      throw new Error("No agent found");
+    }
     function throwError(msg: string): string {
       throw new Error(msg);
     }
@@ -56,7 +77,7 @@ const scheduleTask = tool({
             ? when.cron // cron
             : throwError("not a valid schedule input");
     try {
-      agent!.schedule(input!, "executeTask", description);
+      agent.schedule(input!, "executeTask", description);
     } catch (error) {
       console.error("error scheduling task", error);
       return `Error scheduling task: ${error}`;
@@ -73,10 +94,12 @@ const getScheduledTasks = tool({
   description: "List all tasks that have been scheduled",
   parameters: z.object({}),
   execute: async () => {
-    const { agent } = getCurrentAgent<Chat>();
-
+    const agent = agentContext.getStore();
+    if (!agent) {
+      throw new Error("No agent found");
+    }
     try {
-      const tasks = agent!.getSchedules();
+      const tasks = agent.getSchedules();
       if (!tasks || tasks.length === 0) {
         return "No scheduled tasks found.";
       }
@@ -98,9 +121,12 @@ const cancelScheduledTask = tool({
     taskId: z.string().describe("The ID of the task to cancel"),
   }),
   execute: async ({ taskId }) => {
-    const { agent } = getCurrentAgent<Chat>();
+    const agent = agentContext.getStore();
+    if (!agent) {
+      throw new Error("No agent found");
+    }
     try {
-      await agent!.cancelSchedule(taskId);
+      await agent.cancelSchedule(taskId);
       return `Task ${taskId} has been successfully canceled.`;
     } catch (error) {
       console.error("Error canceling scheduled task", error);
@@ -114,22 +140,35 @@ const cancelScheduledTask = tool({
  * These will be provided to the AI model to describe available capabilities
  */
 export const tools = {
-  getWeatherInformation,
   getLocalTime,
+  getBookingInformation,
+  getAllBookings,
+  createBooking,
   scheduleTask,
   getScheduledTasks,
   cancelScheduledTask,
+  getBookingTypes,
+  getCustomers,
+  getShipToAddresses,
+  getMaterials,
+  updateBooking,
+  getUserLoginStatus,
+  getUserInfo,
+  // Add consumption tools
+  getConsumptionRequest,
+  getConsumptionRequests,
+  getConsumptionRequestsByStatus,
+  getConsumptionRequestsByCustomer,
+  searchConsumptionRequestsByCaseRef,
+  getConsumptionRequestStatusCodes,
 };
 
 /**
  * Implementation of confirmation-required tools
  * This object contains the actual logic for tools that need human approval
  * Each function here corresponds to a tool above that doesn't have an execute function
- * NOTE: keys below should match toolsRequiringConfirmation in app.tsx
  */
 export const executions = {
-  getWeatherInformation: async ({ city }: { city: string }) => {
-    console.log(`Getting weather information for ${city}`);
-    return `The weather in ${city} is sunny`;
-  },
+  // Include booking executions from booking tools file
+  ...bookingExecutions,
 };

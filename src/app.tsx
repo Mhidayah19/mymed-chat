@@ -1,34 +1,131 @@
 import { useEffect, useState, useRef, useCallback, use } from "react";
+import { Theme } from "@radix-ui/themes";
+import "@radix-ui/themes/styles.css";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "agents/ai-react";
+import { agentFetch } from "agents/client";
 import type { Message } from "@ai-sdk/react";
+import { APPROVAL } from "./shared";
 import type { tools } from "./tools";
+// Server interface for MCP connections (matching McpSettings)
+interface Server {
+  id: string;
+  name: string;
+  url: string;
+  transport: "SSE" | "HTTP";
+  actualUrl: string;
+  connected?: boolean;
+}
+
+// Type for booking templates response
+
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import aiIcon from "./assets/AI.svg";
 
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
+import { Input } from "@/components/input/Input";
 import { Avatar } from "@/components/avatar/Avatar";
 import { Toggle } from "@/components/toggle/Toggle";
-import { Textarea } from "@/components/textarea/Textarea";
-import { MemoizedMarkdown } from "@/components/memoized-markdown";
+import { Tooltip } from "@/components/tooltip/Tooltip";
+import { TextShimmer } from "@/components/text/text-shimmer";
+import { Pill } from "@/components/pill/Pill";
+import { AnimatedAiBot } from "@/components/animated-ai-bot/AnimatedAiBot";
+import { cn } from "@/lib/utils";
+
+// MyMediset Design System Components
+import { OrganicShape } from "@/components/organic-shape/OrganicShape";
+import {
+  ChatBookingCard,
+  parseBookingInfo,
+  removeBookingsFromText,
+} from "@/components/booking/ChatBookingCard";
+import {
+  GenericToolResultCard,
+  parseToolResults,
+  removeToolResultsFromText,
+} from "@/components/tool/GenericToolResultCard";
+import {
+  ChatMaterialCard,
+  parseMaterialInfo,
+  removeMaterialsFromText,
+} from "@/components/material/ChatMaterialCard";
+
+// New enhanced components
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import McpSettings from "@/components/mcp/McpSettings";
+import AddServerModal from "@/components/mcp/AddServerModal";
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 
 // Icon imports
 import {
   Bug,
+  Gear,
   Moon,
   Robot,
   Sun,
   Trash,
+  List,
+  X,
   PaperPlaneTilt,
-  Stop,
+  Sliders,
 } from "@phosphor-icons/react";
 
 // List of tools that require human confirmation
-// NOTE: this should match the keys in the executions object in tools.ts
 const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  "getWeatherInformation",
+  "createBooking",
+  "updateBooking",
 ];
+
+// Loading messages to show while the model is thinking
+const loadingMessages = [
+  "Thinking...",
+  "Processing your request...",
+  "Analyzing information...",
+  "Searching for relevant data...",
+  "Generating response...",
+  "Considering options...",
+  "Preparing answer...",
+  "Checking available tools...",
+  "Formulating response...",
+  "Almost there...",
+];
+
+// Define CSS animations
+const pulseAnimation = `
+  @keyframes pulsate {
+    0% {
+      opacity: 0.6;
+      transform: scale(0.98);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0.6;
+      transform: scale(0.98);
+    }
+  }
+
+  .loading-dots::after {
+    content: "...";
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+    animation: dots-animation 1.5s steps(4, end) infinite;
+    width: 0;
+  }
+
+  @keyframes dots-animation {
+    to {
+      width: 1.25em;
+    }
+  }
+`;
 
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -37,8 +134,12 @@ export default function Chat() {
     return (savedTheme as "dark" | "light") || "dark";
   });
   const [showDebug, setShowDebug] = useState(false);
-  const [textareaHeight, setTextareaHeight] = useState("auto");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showMcpPanel, setShowMcpPanel] = useState(false);
+  const [showAddMcpDialog, setShowAddMcpDialog] = useState(false);
+  const [servers, setServers] = useState<Server[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -58,6 +159,17 @@ export default function Chat() {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+  // Add animation styles to head on mount
+  useEffect(() => {
+    const styleElement = document.createElement("style");
+    styleElement.innerHTML = pulseAnimation;
+    document.head.appendChild(styleElement);
+
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
+
   // Scroll to bottom on mount
   useEffect(() => {
     scrollToBottom();
@@ -68,8 +180,24 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
+  // Session management for conversation persistence
+  const useSession = () => {
+    const [sessionId] = useState(() => {
+      let id = localStorage.getItem('chat-session-id');
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem('chat-session-id', id);
+      }
+      return id;
+    });
+    return sessionId;
+  };
+
+  const sessionId = useSession();
+
   const agent = useAgent({
     agent: "chat",
+    id: sessionId, // Use session ID as the instance ID
   });
 
   const {
@@ -80,16 +208,81 @@ export default function Chat() {
     addToolResult,
     clearHistory,
     isLoading,
-    stop,
   } = useAgentChat({
     agent,
     maxSteps: 5,
   });
 
+  // Cycle through loading messages when isLoading is true
+  useEffect(() => {
+    if (isLoading) {
+      const interval = setInterval(() => {
+        setLoadingMessageIndex((prev) =>
+          prev === loadingMessages.length - 1 ? 0 : prev + 1
+        );
+      }, 2000);
+
+      return () => clearInterval(interval);
+    } else {
+      setLoadingMessageIndex(0);
+    }
+  }, [isLoading]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
   }, [agentMessages, scrollToBottom]);
+
+  // Also scroll when loading state changes
+  useEffect(() => {
+    isLoading && scrollToBottom();
+  }, [isLoading, scrollToBottom]);
+
+  // Load MCP servers (same logic as McpSettings)
+  useEffect(() => {
+    const loadConnectedServers = async () => {
+      if (!agent?.host) return; // Wait for agent to be ready
+
+      try {
+        const response = await agentFetch({
+          agent: "chat",
+          host: agent.host,
+          name: "default",
+          path: "list-mcp",
+        });
+
+        if (response.ok) {
+          const result = (await response.json()) as {
+            success?: boolean;
+            servers?: Record<string, any>;
+            error?: string;
+          };
+
+          if (result.success !== false && result.servers) {
+            const backendServers = Object.entries(result.servers || {}).map(
+              ([id, server]: [string, any]) => ({
+                id,
+                name: server.name || "Unknown Server",
+                url: `${server.transport || "SSE"} • ${server.server_url}`,
+                transport: (server.transport || "SSE") as "SSE" | "HTTP",
+                actualUrl: server.server_url,
+                connected: server.state === "ready",
+              })
+            );
+            setServers(backendServers);
+          } else {
+            setServers([]);
+          }
+        } else {
+          setServers([]);
+        }
+      } catch (error) {
+        console.error("❌ Error loading MCP servers:", error);
+      }
+    };
+
+    loadConnectedServers();
+  }, [agent?.host]);
 
   const pendingToolCallConfirmation = agentMessages.some((m: Message) =>
     m.parts?.some(
@@ -106,271 +299,1127 @@ export default function Chat() {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const toggleDrawer = () => {
+    setDrawerOpen(!drawerOpen);
+  };
+
+  // Find active tool if any
+  const getActiveToolName = () => {
+    if (!isLoading) return null;
+
+    // Check last few messages for any tool invocation
+    const recentMessages = [...agentMessages].reverse().slice(0, 3);
+
+    for (const message of recentMessages) {
+      if (message.role === "assistant" && message.parts) {
+        for (const part of message.parts) {
+          if (
+            part.type === "tool-invocation" &&
+            part.toolInvocation.state === "call"
+          ) {
+            return part.toolInvocation.toolName;
+          }
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const activeToolName = getActiveToolName();
+
+  // Shared pill section component
+  const PillSection = ({ className }: { className?: string }) => (
+    <div className={cn("flex flex-wrap justify-center gap-1 sm:gap-2 md:gap-3 lg:gap-4 max-w-4xl mx-auto px-1 sm:px-2", className)}>
+      <Pill 
+        size={window.innerHeight < 720 ? 'sm' : 'md'}
+        onPillClick={(text) => {
+          handleAgentInputChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
+        }}>Create Dr Stephen usual booking</Pill>
+      <Pill 
+        size={window.innerHeight < 720 ? 'sm' : 'md'}
+        onPillClick={(text) => {
+          handleAgentInputChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
+        }}>Recommend some bookings</Pill>
+      <Pill 
+        size={window.innerHeight < 720 ? 'sm' : 'md'}
+        onPillClick={(text) => {
+          handleAgentInputChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
+        }}>Proceed</Pill>
+    </div>
+  );
+
+  // Function to refresh MCP servers (extracted for reuse)
+  const loadConnectedServers = async () => {
+    if (!agent?.host) return;
+
+    try {
+      const response = await agentFetch({
+        agent: "chat",
+        host: agent.host,
+        name: "default",
+        path: "list-mcp",
+      });
+
+      if (response.ok) {
+        const result = (await response.json()) as {
+          success?: boolean;
+          servers?: Record<string, any>;
+          error?: string;
+        };
+
+        if (result.success !== false && result.servers) {
+          const backendServers = Object.entries(result.servers || {}).map(
+            ([id, server]: [string, any]) => ({
+              id,
+              name: server.name || "Unknown Server",
+              url: `${server.transport || "SSE"} • ${server.server_url}`,
+              transport: (server.transport || "SSE") as "SSE" | "HTTP",
+              actualUrl: server.server_url,
+              connected: server.state === "ready",
+            })
+          );
+          setServers(backendServers);
+        } else {
+          setServers([]);
+        }
+      } else {
+        setServers([]);
+      }
+    } catch (error) {
+      console.error("❌ Error loading MCP servers:", error);
+    }
+  };
+
+  // MCP Server Management Functions (copied from McpSettings)
+  const handleAddMcpServer = (newServer: Server) => {
+    const serverWithStatus = {
+      ...newServer,
+      connected: false,
+    };
+    setServers([...servers, serverWithStatus]);
+  };
+
+  const handleDeleteServer = async (serverId: string) => {
+    try {
+      const response = await agentFetch(
+        {
+          agent: "chat",
+          host: agent.host,
+          name: "default",
+          path: "remove-mcp",
+        },
+        {
+          method: "POST",
+          body: JSON.stringify({ serverId }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        setServers(servers.filter((server) => server.id !== serverId));
+      } else {
+        // Still remove from local state even if backend removal failed
+        setServers(servers.filter((server) => server.id !== serverId));
+      }
+    } catch (error) {
+      console.error("❌ Error removing MCP server:", error);
+      // Still remove from local state even if request failed
+      setServers(servers.filter((server) => server.id !== serverId));
+    }
+  };
+
+  const handleConnectServer = async (serverId: string) => {
+    const server = servers.find((s) => s.id === serverId);
+    if (!server) return;
+
+    try {
+      console.log("Connecting to MCP server via backend...");
+
+      const response = await agentFetch(
+        {
+          agent: "chat",
+          host: agent.host,
+          name: "default",
+          path: "add-mcp",
+        },
+        {
+          method: "POST",
+          body: JSON.stringify({ name: server.name, url: server.actualUrl }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        const result = (await response.json()) as {
+          success: boolean;
+          result?: { authUrl?: string };
+          authUrl?: string;
+        };
+        
+        console.log("✅ MCP server connected via backend:", result);
+        
+        // Fix: The authUrl can be directly in result or in result.result
+        const authUrl = (result as any).authUrl || result.result?.authUrl;
+
+        // If OAuth is required, open auth window
+        if (authUrl) {
+          console.log("🔐 OAuth required, opening auth window...");
+          const authWindow = window.open(
+            authUrl,
+            "mcpAuth",
+            "width=600,height=800,resizable=yes,scrollbars=yes,toolbar=yes,menubar=no,location=no,directories=no,status=yes"
+          );
+
+          // Poll for when the OAuth window closes
+          const pollTimer = setInterval(() => {
+            if (authWindow?.closed) {
+              clearInterval(pollTimer);
+              console.log("🔐 OAuth window closed, refreshing server status...");
+              // Refresh server status after OAuth flow
+              setTimeout(() => {
+                loadConnectedServers();
+              }, 1000);
+            }
+          }, 1000);
+        } else {
+          console.log("ℹ️ No OAuth required - direct connection");
+          // Refresh server list immediately
+          setTimeout(() => {
+            loadConnectedServers();
+          }, 500);
+        }
+      } else {
+        const error = (await response.json()) as { error?: string };
+        console.error("❌ Backend failed to connect MCP server:", error);
+      }
+    } catch (error) {
+      console.error("❌ Error connecting to backend:", error);
+    }
+  };
+
+  const handleDisconnectServer = async (serverId: string) => {
+    try {
+      const response = await agentFetch(
+        {
+          agent: "chat",
+          host: agent.host,
+          name: "default",
+          path: "disconnect-mcp",
+        },
+        {
+          method: "POST",
+          body: JSON.stringify({ serverId }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        setServers((prev) =>
+          prev.map((s) => (s.id === serverId ? { ...s, connected: false } : s))
+        );
+      }
+    } catch (error) {
+      console.error("❌ Error disconnecting server:", error);
+    }
+  };
+
   return (
-    <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
-      <HasOpenAIKey />
-      <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
-        <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
-          <div className="flex items-center justify-center h-8 w-8">
-            <svg
-              width="28px"
-              height="28px"
-              className="text-[#F48120]"
-              data-icon="agents"
-            >
-              <title>Cloudflare Agents</title>
-              <symbol id="ai:local:agents" viewBox="0 0 80 79">
-                <path
-                  fill="currentColor"
-                  d="M69.3 39.7c-3.1 0-5.8 2.1-6.7 5H48.3V34h4.6l4.5-2.5c1.1.8 2.5 1.2 3.9 1.2 3.8 0 7-3.1 7-7s-3.1-7-7-7-7 3.1-7 7c0 .9.2 1.8.5 2.6L51.9 30h-3.5V18.8h-.1c-1.3-1-2.9-1.6-4.5-1.9h-.2c-1.9-.3-3.9-.1-5.8.6-.4.1-.8.3-1.2.5h-.1c-.1.1-.2.1-.3.2-1.7 1-3 2.4-4 4 0 .1-.1.2-.1.2l-.3.6c0 .1-.1.1-.1.2v.1h-.6c-2.9 0-5.7 1.2-7.7 3.2-2.1 2-3.2 4.8-3.2 7.7 0 .7.1 1.4.2 2.1-1.3.9-2.4 2.1-3.2 3.5s-1.2 2.9-1.4 4.5c-.1 1.6.1 3.2.7 4.7s1.5 2.9 2.6 4c-.8 1.8-1.2 3.7-1.1 5.6 0 1.9.5 3.8 1.4 5.6s2.1 3.2 3.6 4.4c1.3 1 2.7 1.7 4.3 2.2v-.1q2.25.75 4.8.6h.1c0 .1.1.1.1.1.9 1.7 2.3 3 4 4 .1.1.2.1.3.2h.1c.4.2.8.4 1.2.5 1.4.6 3 .8 4.5.7.4 0 .8-.1 1.3-.1h.1c1.6-.3 3.1-.9 4.5-1.9V62.9h3.5l3.1 1.7c-.3.8-.5 1.7-.5 2.6 0 3.8 3.1 7 7 7s7-3.1 7-7-3.1-7-7-7c-1.5 0-2.8.5-3.9 1.2l-4.6-2.5h-4.6V48.7h14.3c.9 2.9 3.5 5 6.7 5 3.8 0 7-3.1 7-7s-3.1-7-7-7m-7.9-16.9c1.6 0 3 1.3 3 3s-1.3 3-3 3-3-1.3-3-3 1.4-3 3-3m0 41.4c1.6 0 3 1.3 3 3s-1.3 3-3 3-3-1.3-3-3 1.4-3 3-3M44.3 72c-.4.2-.7.3-1.1.3-.2 0-.4.1-.5.1h-.2c-.9.1-1.7 0-2.6-.3-1-.3-1.9-.9-2.7-1.7-.7-.8-1.3-1.7-1.6-2.7l-.3-1.5v-.7q0-.75.3-1.5c.1-.2.1-.4.2-.7s.3-.6.5-.9c0-.1.1-.1.1-.2.1-.1.1-.2.2-.3s.1-.2.2-.3c0 0 0-.1.1-.1l.6-.6-2.7-3.5c-1.3 1.1-2.3 2.4-2.9 3.9-.2.4-.4.9-.5 1.3v.1c-.1.2-.1.4-.1.6-.3 1.1-.4 2.3-.3 3.4-.3 0-.7 0-1-.1-2.2-.4-4.2-1.5-5.5-3.2-1.4-1.7-2-3.9-1.8-6.1q.15-1.2.6-2.4l.3-.6c.1-.2.2-.4.3-.5 0 0 0-.1.1-.1.4-.7.9-1.3 1.5-1.9 1.6-1.5 3.8-2.3 6-2.3q1.05 0 2.1.3v-4.5c-.7-.1-1.4-.2-2.1-.2-1.8 0-3.5.4-5.2 1.1-.7.3-1.3.6-1.9 1s-1.1.8-1.7 1.3c-.3.2-.5.5-.8.8-.6-.8-1-1.6-1.3-2.6-.2-1-.2-2 0-2.9.2-1 .6-1.9 1.3-2.6.6-.8 1.4-1.4 2.3-1.8l1.8-.9-.7-1.9c-.4-1-.5-2.1-.4-3.1s.5-2.1 1.1-2.9q.9-1.35 2.4-2.1c.9-.5 2-.8 3-.7.5 0 1 .1 1.5.2 1 .2 1.8.7 2.6 1.3s1.4 1.4 1.8 2.3l4.1-1.5c-.9-2-2.3-3.7-4.2-4.9q-.6-.3-.9-.6c.4-.7 1-1.4 1.6-1.9.8-.7 1.8-1.1 2.9-1.3.9-.2 1.7-.1 2.6 0 .4.1.7.2 1.1.3V72zm25-22.3c-1.6 0-3-1.3-3-3 0-1.6 1.3-3 3-3s3 1.3 3 3c0 1.6-1.3 3-3 3"
-                />
-              </symbol>
-              <use href="#ai:local:agents" />
-            </svg>
-          </div>
-
-          <div className="flex-1">
-            <h2 className="font-semibold text-base">AI Chat Agent</h2>
-          </div>
-
-          <div className="flex items-center gap-2 mr-2">
-            <Bug size={16} />
-            <Toggle
-              toggled={showDebug}
-              aria-label="Toggle debug mode"
-              onClick={() => setShowDebug((prev) => !prev)}
-            />
-          </div>
-
-          <Button
-            variant="ghost"
-            size="md"
-            shape="square"
-            className="rounded-full h-9 w-9"
-            onClick={toggleTheme}
-          >
-            {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="md"
-            shape="square"
-            className="rounded-full h-9 w-9"
-            onClick={clearHistory}
-          >
-            <Trash size={20} />
-          </Button>
+    <Theme accentColor="cyan" grayColor="slate" radius="medium" scaling="100%" style={{ background: 'transparent' }}>
+      <div className="h-screen w-full flex flex-col overflow-hidden relative" style={{ background: 'var(--color-background-primary)' }}>
+        <HasOpenAIKey />
+        
+        {/* Organic Shape Background Elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <OrganicShape variant="petal" size="xl" className="hidden sm:block absolute top-20 right-10 opacity-30" />
+          <OrganicShape variant="crystal" size="md" className="hidden sm:block absolute top-1/2 right-1/3 opacity-25" />
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
-          {agentMessages.length === 0 && (
-            <div className="h-full flex items-center justify-center">
-              <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
-                <div className="text-center space-y-4">
-                  <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
-                    <Robot size={24} />
+      {/* Layout Container */}
+      <div className="flex flex-1 h-full overflow-hidden relative z-10">
+        {/* Overlay for mobile */}
+        {drawerOpen && (
+          <div
+            className="fixed inset-0 bg-black/20 dark:bg-black/50 z-20 lg:hidden"
+            onClick={toggleDrawer}
+          />
+        )}
+
+        {/* Drawer/Sidebar */}
+        <div
+          className={`fixed lg:fixed w-64 h-full z-30 transform transition-transform duration-300 ease-in-out ${
+            drawerOpen ? "translate-x-0" : "-translate-x-full"
+          } bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 shadow-lg`}
+        >
+          <div className="flex items-center justify-between h-16 px-4 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="flex items-center">{/* Logo removed */}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              shape="square"
+              className="rounded-full lg:hidden"
+              onClick={toggleDrawer}
+            >
+              <X size={18} />
+            </Button>
+          </div>
+
+          <div className="p-4">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium mb-2">Settings</h3>
+                <div className="flex items-center justify-between bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md">
+                  <div className="flex items-center gap-2">
+                    {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
+                    <span className="text-sm">Theme</span>
                   </div>
-                  <h3 className="font-semibold text-lg">Welcome to AI Chat</h3>
-                  <p className="text-muted-foreground text-sm">
-                    Start a conversation with your AI assistant. Try asking
-                    about:
-                  </p>
-                  <ul className="text-sm text-left space-y-2">
-                    <li className="flex items-center gap-2">
-                      <span className="text-[#F48120]">•</span>
-                      <span>Weather information for any city</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-[#F48120]">•</span>
-                      <span>Local time in different locations</span>
-                    </li>
-                  </ul>
+                  <Toggle
+                    toggled={theme === "dark"}
+                    aria-label="Toggle theme"
+                    onClick={toggleTheme}
+                  />
                 </div>
-              </Card>
-            </div>
-          )}
-
-          {agentMessages.map((m: Message, index) => {
-            const isUser = m.role === "user";
-            const showAvatar =
-              index === 0 || agentMessages[index - 1]?.role !== m.role;
-
-            return (
-              <div key={m.id}>
-                {showDebug && (
-                  <pre className="text-xs text-muted-foreground overflow-scroll">
-                    {JSON.stringify(m, null, 2)}
-                  </pre>
-                )}
-                <div
-                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`flex gap-2 max-w-[85%] ${
-                      isUser ? "flex-row-reverse" : "flex-row"
-                    }`}
+                <div className="flex items-center justify-between bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md mt-2">
+                  <div className="flex items-center gap-2">
+                    <Bug size={16} />
+                    <span className="text-sm">Debug Mode</span>
+                  </div>
+                  <Toggle
+                    toggled={showDebug}
+                    aria-label="Toggle debug mode"
+                    onClick={() => setShowDebug((prev) => !prev)}
+                  />
+                </div>
+                <div className="flex items-center justify-between bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md mt-2">
+                  <div className="flex items-center gap-2">
+                    <Gear size={16} />
+                    <span className="text-sm">AI Analysis & MCP</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    shape="circular"
+                    className="h-6 w-6"
+                    onClick={() => setShowMcpPanel(!showMcpPanel)}
                   >
-                    {showAvatar && !isUser ? (
-                      <Avatar username={"AI"} />
-                    ) : (
-                      !isUser && <div className="w-8" />
-                    )}
+                    <Gear size={14} />
+                  </Button>
+                </div>
+              </div>
 
-                    <div>
-                      <div>
-                        {m.parts?.map((part, i) => {
-                          if (part.type === "text") {
-                            return (
-                              // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
-                              <div key={i}>
-                                <Card
-                                  className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
-                                    isUser
-                                      ? "rounded-br-none"
-                                      : "rounded-bl-none border-assistant-border"
-                                  } ${
-                                    part.text.startsWith("scheduled message")
-                                      ? "border-accent/50"
-                                      : ""
-                                  } relative`}
+
+              <div className="pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-800">
+                <Button
+                  variant="ghost"
+                  size="md"
+                  className="w-full justify-start text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                  onClick={clearHistory}
+                >
+                  <Trash size={16} className="mr-2" />
+                  Clear conversation
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div
+          className={`flex-1 flex flex-col h-full bg-transparent ${!drawerOpen ? "lg:ml-0" : "lg:ml-64"}`}
+        >
+          {/* Header */}
+          <header className="flex-shrink-0 w-full bg-white shadow-sm h-16 px-4 flex items-center justify-between z-40">
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                shape="square"
+                className="rounded-full mr-2"
+                onClick={toggleDrawer}
+              >
+                <List size={20} />
+              </Button>
+              <div className="flex items-center px-4 py-3">
+                <img src="/favicon.png" alt="MyMediset Logo" className="h-12" />
+                <span className="ml-2 text-lg font-semibold truncate text-black font-pacifico">
+                Agent
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                shape="square"
+                className="rounded-full"
+                onClick={clearHistory}
+              >
+                <Trash size={18} />
+              </Button>
+            </div>
+          </header>
+            
+          {/* Scrollable Content Area - from header to form */}
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 dark:hover:scrollbar-thumb-gray-500 bg-white">
+            {agentMessages.length === 0 && !isLoading ? (
+              /* Welcome Mode - Center everything together */
+              <div className="h-full flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 relative -mt-8">
+              {/* Welcome Content */}
+              <div className="mb-8">
+                <AnimatedAiBot />
+                <OrganicShape variant="petal" size="lg" className="hidden sm:block absolute top-10 right-20 opacity-40" />
+                <OrganicShape variant="crystal" size="md" className="hidden md:block absolute bottom-10 left-10 opacity-30" />
+              </div>
+                
+                {/* Centered Input Area */}
+                <div className="w-full max-w-4xl">
+                  
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleAgentSubmit(e);
+                    }}
+                    className="w-full"
+                  >
+                    <div className="relative w-full">
+                      <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200"
+                           style={{ background: 'linear-gradient(135deg, #00D4FF 0%, #8B5CF6 100%)' }}>
+                        <div className="relative flex items-center bg-ob-btn-secondary-bg rounded-full py-2">
+                          {/* AI icon on the left */}
+                          <div className="pl-6 pr-4">
+                            <img src={aiIcon} alt="AI" className="w-5 h-5 opacity-60" />
+                          </div>
+                          
+                          <Input
+                            disabled={pendingToolCallConfirmation || isLoading}
+                            placeholder="Ask anything"
+                            className="flex-1 bg-transparent border-0 h-16 text-lg px-0
+                              focus:outline-none focus:ring-0 focus:border-0
+                              file:border-0 file:bg-transparent file:text-base file:font-medium
+                              placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                            value={agentInput}
+                            onChange={handleAgentInputChange}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleAgentSubmit(e as unknown as React.FormEvent);
+                              }
+                            }}
+                            onValueChange={undefined}
+                            spellCheck="false"
+                            autoCapitalize="off"
+                            autoCorrect="off"
+                            autoComplete="off"
+                            inputMode="search"
+                            enterKeyHint="search"
+                            aria-label="Ask anything"
+                          />
+                          
+                          <div className="flex items-center gap-2 mr-3">
+                            <DropdownMenuPrimitive.Root>
+                              <DropdownMenuPrimitive.Trigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  shape="circular"
+                                  className="h-9 w-9 rounded-full"
+                                  aria-label="MCP Control Panel"
+                                  style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(139, 92, 246, 0.2) 100%)'}}
                                 >
-                                  {part.text.startsWith(
-                                    "scheduled message"
-                                  ) && (
-                                    <span className="absolute -top-3 -left-2 text-base">
-                                      🕒
+                                  <Sliders size={16} />
+                                </Button>
+                              </DropdownMenuPrimitive.Trigger>
+                              <DropdownMenuPrimitive.Portal>
+                                <DropdownMenuPrimitive.Content
+                                  align="end"
+                                  side="top"
+                                  className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-xl p-1 text-base font-medium text-neutral-900 dark:text-white z-50"
+                                >
+                                  <DropdownMenuPrimitive.Label className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">MCP Connections</DropdownMenuPrimitive.Label>
+                                  <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
+                                  {servers.length === 0 && (
+                                    <span className="p-3 text-neutral-500 dark:text-neutral-400 text-sm select-none text-center w-full">
+                                      No MCP servers available.
                                     </span>
                                   )}
-                                  <MemoizedMarkdown
-                                    id={`${m.id}-${i}`}
-                                    content={part.text.replace(
-                                      /^scheduled message: /,
-                                      ""
-                                    )}
-                                  />
-                                </Card>
-                                <p
-                                  className={`text-xs text-muted-foreground mt-1 ${
-                                    isUser ? "text-right" : "text-left"
-                                  }`}
+                                  {servers.map((server) => (
+                                    <DropdownMenuPrimitive.Item
+                                      key={server.id}
+                                      className="flex items-center justify-between w-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors p-2 rounded-md cursor-pointer"
+                                    >
+                                      <div className="flex items-center gap-2 w-full">
+                                        <span className="flex items-center justify-center w-6 h-6 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold text-xs border border-neutral-200 dark:border-neutral-700 mr-2">
+                                          {(server.name || server.url).charAt(0).toUpperCase()}
+                                        </span>
+                                        <div className="flex flex-col">
+                                          <span className="text-base text-neutral-900 dark:text-neutral-50">
+                                            {server.name || server.url}
+                                          </span>
+                                          <span
+                                            className={`text-xs font-medium lowercase tracking-wide align-middle mt-0.5 ${
+                                              server.connected
+                                                ? "text-green-600 dark:text-green-400"
+                                                : "text-red-600 dark:text-red-400"
+                                            }`}
+                                          >
+                                            {server.connected ? "ready" : "disconnected"}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        {!server.connected ? (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            shape="square"
+                                            className="rounded-full h-6 w-6 text-gray-400 hover:text-green-500"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              e.preventDefault();
+                                              handleConnectServer(server.id);
+                                            }}
+                                            aria-label="Connect to server"
+                                          >
+                                            ▶
+                                          </Button>
+                                        ) : (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            shape="square"
+                                            className="rounded-full h-6 w-6 text-gray-400 hover:text-red-500"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              e.preventDefault();
+                                              handleDisconnectServer(server.id);
+                                            }}
+                                            aria-label="Disconnect from server"
+                                          >
+                                            ⏸
+                                          </Button>
+                                        )}
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          shape="square"
+                                          className="rounded-full h-6 w-6"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            handleDeleteServer(server.id);
+                                          }}
+                                          aria-label="Remove MCP Server"
+                                        >
+                                          <Trash size={14} />
+                                        </Button>
+                                      </div>
+                                    </DropdownMenuPrimitive.Item>
+                                  ))}
+                                  <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
+                                  <DropdownMenuPrimitive.Item
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setShowAddMcpDialog(true);
+                                    }}
+                                    onSelect={(e) => e.preventDefault()}
+                                    className="bg-primary/5 text-primary rounded-lg font-semibold px-3 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
+                                  >
+                                    + Add MCP Server
+                                  </DropdownMenuPrimitive.Item>
+                                </DropdownMenuPrimitive.Content>
+                              </DropdownMenuPrimitive.Portal>
+                            </DropdownMenuPrimitive.Root>
+                            <button
+                              type="submit"
+                              className="inline-flex items-center justify-center h-9 w-9 rounded-full
+                                transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed 
+                                text-black hover:opacity-90
+                                focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-1"
+                              style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}
+                              title="Send message"
+                              disabled={
+                                pendingToolCallConfirmation ||
+                                isLoading ||
+                                !agentInput.trim()
+                              }
+                            >
+                              <PaperPlaneTilt size={18} className="rotate-45" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            ) : (
+              /* Messages Mode - Content within scrollable area */
+              <div className="px-2 sm:px-4 py-2 sm:py-4">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="space-y-4 sm:space-y-6 py-4">
+                      {agentMessages.map((m: Message, index) => {
+                const isUser = m.role === "user";
+                // const isLastMessage = index === agentMessages.length - 1;
+                // // Check if this is a user message followed by an agent message
+                // const isFollowedByAgentMessage =
+                //   isUser &&
+                //   index < agentMessages.length - 1 &&
+                //   agentMessages[index + 1].role === "assistant";
+
+                return (
+                  <div key={m.id}>
+                    {showDebug && (
+                      <pre className="text-xs text-muted-foreground overflow-scroll">
+                        {JSON.stringify(m, null, 2)}
+                      </pre>
+                    )}
+                    <div
+                      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`flex gap-1 sm:gap-2 max-w-[98%] sm:max-w-[98%] ${
+                          isUser ? "flex-row-reverse" : "flex-row"
+                        }`}
+                      >
+                        {/* Avatar removed */}
+
+                        <div className="w-full">
+                          <div>
+                            {m.parts?.map((part, i) => {
+                              if (part.type === "text") {
+                                // Check if the text contains booking information
+                                const bookings = parseBookingInfo(part.text);
+                                const textWithoutBookings =
+                                  removeBookingsFromText(part.text);
+
+                                return (
+                                  // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
+                                  <div key={i}>
+                                    <Card
+                                      className={`p-3 sm:p-4 rounded-lg w-full ${
+                                        isUser
+                                          ? "rounded-br-none bg-black border border-gray-300 text-white"
+                                          : "rounded-bl-none bg-[var(--color-chat-ai-bubble)] border border-[var(--color-chat-ai-border)] text-gray-600 shadow-sm"
+                                      } ${
+                                        part.text.startsWith(
+                                          "scheduled message"
+                                        )
+                                          ? "border-accent/50"
+                                          : ""
+                                      } relative`}
+                                    >
+                                      {part.text.startsWith(
+                                        "scheduled message"
+                                      ) && (
+                                        <span className="absolute -top-3 -left-2 text-base">
+                                          🕒
+                                        </span>
+                                      )}
+                                      {part.text.startsWith(
+                                        "scheduled message"
+                                      ) ? (
+                                        <p className="text-sm sm:text-base whitespace-pre-wrap">
+                                          {part.text.replace(
+                                            /^scheduled message: /,
+                                            ""
+                                          )}
+                                        </p>
+                                      ) : (
+                                        <div
+                                          className={`prose ${isUser ? "dark:prose-invert" : "dark:prose-invert"} prose-sm sm:prose-base max-w-none`}
+                                        >
+                                          {/* Process all card types */}
+                                          {(() => {
+                                            // Parse generic tool results
+                                            const toolResults = parseToolResults(
+                                              part.text
+                                            );
+                                            let remainingText = removeToolResultsFromText(
+                                              part.text
+                                            );
+
+                                            // Parse regular bookings from remaining text
+                                            const bookings = parseBookingInfo(
+                                              remainingText
+                                            );
+                                            remainingText = removeBookingsFromText(
+                                              remainingText
+                                            );
+
+                                            // Finally parse materials from remaining text
+                                            const materials =
+                                              parseMaterialInfo(
+                                                remainingText
+                                              );
+                                            const textWithoutMaterials =
+                                              removeMaterialsFromText(
+                                                remainingText
+                                              );
+
+                                            // Return clean text and all card types
+                                            return (
+                                              <>
+                                                {/* @ts-ignore - TypeScript issues with ReactMarkdown components */}
+                                                <ReactMarkdown
+                                                  children={
+                                                    textWithoutMaterials
+                                                  }
+                                                  components={{
+                                                    code: ({ children }) => {
+                                                      return (
+                                                        <code
+                                                          className={`${isUser ? "bg-neutral-300 dark:bg-neutral-600 text-neutral-900 dark:text-white border border-neutral-400 dark:border-neutral-500" : "bg-gray-800 text-white"} px-1 py-0.5 rounded`}
+                                                        >
+                                                          {children}
+                                                        </code>
+                                                      );
+                                                    },
+                                                    img: ({ src, alt }) => {
+                                                      return (
+                                                        <img
+                                                          src={src}
+                                                          alt={alt || ""}
+                                                          className="rounded-md max-w-[300px] w-auto h-auto my-2"
+                                                          loading="lazy"
+                                                          style={{
+                                                            maxWidth: "300px",
+                                                          }}
+                                                        />
+                                                      );
+                                                    },
+                                                  }}
+                                                />
+
+
+                                                {toolResults.length > 0 && (
+                                                  <div className="mt-3">
+                                                    {toolResults.map(
+                                                      (result, idx) => (
+                                                        <GenericToolResultCard
+                                                          key={idx}
+                                                          result={result}
+                                                        />
+                                                      )
+                                                    )}
+                                                  </div>
+                                                )}
+
+                                                {bookings.length > 0 && (
+                                                  <div className="mt-3">
+                                                    {bookings.map(
+                                                      (booking, idx) => (
+                                                        <ChatBookingCard
+                                                          key={idx}
+                                                          booking={booking}
+                                                        />
+                                                      )
+                                                    )}
+                                                  </div>
+                                                )}
+
+                                                {materials.length > 0 && (
+                                                  <div className="mt-3">
+                                                    {materials.map(
+                                                      (material, idx) => (
+                                                        <ChatMaterialCard
+                                                          key={idx}
+                                                          material={material}
+                                                        />
+                                                      )
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                      )}
+                                    </Card>
+                                    <p
+                                      className={`text-[10px] sm:text-xs text-muted-foreground mt-1 ${
+                                        isUser ? "text-right" : "text-left"
+                                      }`}
+                                    >
+                                      {formatTime(
+                                        new Date(
+                                          m.createdAt as unknown as string
+                                        )
+                                      )}
+                                    </p>
+                                  </div>
+                                );
+                              }
+
+                              if (part.type === "tool-invocation") {
+                                const toolInvocation = part.toolInvocation;
+                                const toolCallId = toolInvocation.toolCallId;
+
+                                if (
+                                  toolsRequiringConfirmation.includes(
+                                    toolInvocation.toolName as keyof typeof tools
+                                  ) &&
+                                  toolInvocation.state === "call"
+                                ) {
+                                  return (
+                                    <Card
+                                      // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
+                                      key={i}
+                                      className="p-3 sm:p-4 my-2 sm:my-3 rounded-md bg-neutral-100 dark:bg-neutral-900"
+                                    >
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <div className="bg-[rgb(0,104,120)]/10 p-1.5 rounded-full">
+                                          <Robot
+                                            size={16}
+                                            className="text-[rgb(0,104,120)]"
+                                          />
+                                        </div>
+                                        <h4 className="font-medium text-sm sm:text-base">
+                                          <TextShimmer
+                                            className="text-[rgb(0,104,120)]"
+                                            duration={1.5}
+                                          >
+                                            {toolInvocation.toolName}
+                                          </TextShimmer>
+                                        </h4>
+                                      </div>
+
+                                      <div className="mb-3">
+                                        <h5 className="text-[10px] sm:text-xs font-medium mb-1 text-muted-foreground">
+                                          Arguments:
+                                        </h5>
+                                        <pre className="bg-background/80 p-1.5 sm:p-2 rounded-md text-[10px] sm:text-xs overflow-auto">
+                                          {JSON.stringify(
+                                            toolInvocation.args,
+                                            null,
+                                            2
+                                          )}
+                                        </pre>
+                                      </div>
+
+                                      <div className="flex gap-2 justify-end">
+                                        <Button
+                                          variant="primary"
+                                          size="sm"
+                                          className="text-xs"
+                                          onClick={() =>
+                                            addToolResult({
+                                              toolCallId,
+                                              result: APPROVAL.NO,
+                                            })
+                                          }
+                                        >
+                                          Reject
+                                        </Button>
+                                        <Tooltip content={"Accept action"}>
+                                          <Button
+                                            variant="primary"
+                                            size="sm"
+                                            className="text-xs"
+                                            onClick={() =>
+                                              addToolResult({
+                                                toolCallId,
+                                                result: APPROVAL.YES,
+                                              })
+                                            }
+                                          >
+                                            Approve
+                                          </Button>
+                                        </Tooltip>
+                                      </div>
+                                    </Card>
+                                  );
+                                } else {
+                                  // Use ToolInvocationCard for other tool invocations
+                                  return (
+                                    <ToolInvocationCard
+                                      // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
+                                      key={i}
+                                      toolInvocation={toolInvocation}
+                                      toolCallId={toolCallId}
+                                      needsConfirmation={false}
+                                      addToolResult={addToolResult}
+                                    />
+                                  );
+                                }
+                                return null;
+                              }
+                              return null;
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+                      })}
+                      
+                      {/* Loading animation showing active tool or just "Thinking..." */}
+                      {isLoading && (
+                        <div className="flex justify-start mt-2 mb-4">
+                          <div className="w-full max-w-[98%] pl-2">
+                            <TextShimmer
+                              className="text-base font-medium"
+                              duration={1.5}
+                            >
+                              {activeToolName
+                                ? `Using ${activeToolName}...`
+                                : "Thinking..."}
+                            </TextShimmer>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+                    {/* Spacer for floating input area */}
+                    <div className="h-32 sm:h-36" />
+                  </div>
+                </div>
+              )}
+          </div>
+          
+          {(agentMessages.length === 0 && !isLoading) && (
+            <div className="absolute left-0 right-0 flex justify-center z-30 px-2 sm:px-4"
+                 style={{
+                   bottom: window.innerHeight < 720 
+                     ? 'calc(5rem + env(safe-area-inset-bottom) + 8px)' 
+                     : 'calc(5rem + env(safe-area-inset-bottom) + 16px)'
+                 }}>
+              <PillSection className="w-full justify-center" />
+            </div>
+          )}
+          {(agentMessages.length > 0 || isLoading) && (
+            <div className={`fixed bottom-0 left-0 right-0 z-40 p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-transparent ${drawerOpen ? 'lg:left-64' : ''}`}>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAgentSubmit(e);
+                }}
+                className="w-full"
+              >
+                <div className="relative w-full max-w-4xl mx-auto">
+                  <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200"
+                       style={{ background: 'linear-gradient(135deg, #00D4FF 0%, #8B5CF6 100%)' }}>
+                    <div className="relative flex items-center bg-ob-btn-secondary-bg rounded-full py-2">
+                      {/* AI icon on the left */}
+                      <div className="pl-6 pr-4">
+                        <img src={aiIcon} alt="AI" className="w-5 h-5 opacity-60" />
+                      </div>
+
+                      <Input
+                        disabled={pendingToolCallConfirmation || isLoading}
+                        placeholder="Ask anything"
+                        className="flex-1 bg-transparent border-0 h-16 text-lg px-0
+                          focus:outline-none focus:ring-0 focus:border-0
+                          file:border-0 file:bg-transparent file:text-base file:font-medium
+                          placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        value={agentInput}
+                        onChange={handleAgentInputChange}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleAgentSubmit(e as unknown as React.FormEvent);
+                          }
+                        }}
+                        onValueChange={undefined}
+                        spellCheck="false"
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        autoComplete="off"
+                        inputMode="search"
+                        enterKeyHint="search"
+                        aria-label="Ask anything"
+                      />
+
+                      <div className="flex items-center gap-2 mr-3">
+                        <DropdownMenuPrimitive.Root>
+                          <DropdownMenuPrimitive.Trigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              shape="circular"
+                              className="h-9 w-9 rounded-full"
+                              aria-label="MCP Control Panel"
+                              style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(139, 92, 246, 0.2) 100%)'}}
+                            >
+                              <Sliders size={16} />
+                            </Button>
+                          </DropdownMenuPrimitive.Trigger>
+                          <DropdownMenuPrimitive.Portal>
+                            <DropdownMenuPrimitive.Content
+                              align="end"
+                              side="top"
+                              className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-xl p-1 text-base font-medium text-neutral-900 dark:text-white z-50"
+                            >
+                              <DropdownMenuPrimitive.Label className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">MCP Connections</DropdownMenuPrimitive.Label>
+                              <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
+                              {servers.length === 0 && (
+                                <span className="p-3 text-neutral-500 dark:text-neutral-400 text-sm select-none text-center w-full">
+                                  No MCP servers available.
+                                </span>
+                              )}
+                              {servers.map((server) => (
+                                <DropdownMenuPrimitive.Item
+                                  key={server.id}
+                                  className="flex items-center justify-between w-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors p-2 rounded-md cursor-pointer"
                                 >
-                                  {formatTime(
-                                    new Date(m.createdAt as unknown as string)
-                                  )}
-                                </p>
-                              </div>
-                            );
+                                  <div className="flex items-center gap-2 w-full">
+                                    <span className="flex items-center justify-center w-6 h-6 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold text-xs border border-neutral-200 dark:border-neutral-700 mr-2">
+                                      {(server.name || server.url).charAt(0).toUpperCase()}
+                                    </span>
+                                    <div className="flex flex-col">
+                                      <span className="text-base text-neutral-900 dark:text-neutral-50">
+                                        {server.name || server.url}
+                                      </span>
+                                      <span
+                                        className={`text-xs font-medium lowercase tracking-wide align-middle mt-0.5 ${
+                                          server.connected
+                                            ? "text-green-600 dark:text-green-400"
+                                            : "text-red-600 dark:text-red-400"
+                                        }`}
+                                      >
+                                        {server.connected ? "ready" : "disconnected"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {!server.connected ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        shape="square"
+                                        className="rounded-full h-6 w-6 text-gray-400 hover:text-green-500"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          handleConnectServer(server.id);
+                                        }}
+                                        aria-label="Connect to server"
+                                      >
+                                        ▶
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        shape="square"
+                                        className="rounded-full h-6 w-6 text-gray-400 hover:text-red-500"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          handleDisconnectServer(server.id);
+                                        }}
+                                        aria-label="Disconnect from server"
+                                      >
+                                        ⏸
+                                      </Button>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      shape="square"
+                                      className="rounded-full h-6 w-6"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        handleDeleteServer(server.id);
+                                      }}
+                                      aria-label="Remove MCP Server"
+                                    >
+                                      <Trash size={14} />
+                                    </Button>
+                                  </div>
+                                </DropdownMenuPrimitive.Item>
+                              ))}
+                              <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
+                              <DropdownMenuPrimitive.Item
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setShowAddMcpDialog(true);
+                                }}
+                                onSelect={(e) => e.preventDefault()}
+                                className="bg-primary/5 text-primary rounded-lg font-semibold px-3 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
+                              >
+                                + Add MCP Server
+                              </DropdownMenuPrimitive.Item>
+                            </DropdownMenuPrimitive.Content>
+                          </DropdownMenuPrimitive.Portal>
+                        </DropdownMenuPrimitive.Root>
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center h-9 w-9 rounded-full
+                            transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed 
+                            text-black hover:opacity-90
+                            focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-1"
+                          style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(139, 92, 246, 0.3) 100%)'}}
+                          title="Send message"
+                          disabled={
+                            pendingToolCallConfirmation ||
+                            isLoading ||
+                            !agentInput.trim()
                           }
-
-                          if (part.type === "tool-invocation") {
-                            const toolInvocation = part.toolInvocation;
-                            const toolCallId = toolInvocation.toolCallId;
-                            const needsConfirmation =
-                              toolsRequiringConfirmation.includes(
-                                toolInvocation.toolName as keyof typeof tools
-                              );
-
-                            // Skip rendering the card in debug mode
-                            if (showDebug) return null;
-
-                            return (
-                              <ToolInvocationCard
-                                // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
-                                key={`${toolCallId}-${i}`}
-                                toolInvocation={toolInvocation}
-                                toolCallId={toolCallId}
-                                needsConfirmation={needsConfirmation}
-                                addToolResult={addToolResult}
-                              />
-                            );
-                          }
-                          return null;
-                        })}
+                        >
+                          <PaperPlaneTilt size={18} className="rotate-45" />
+                        </button>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
+              </form>
+              
+              {/* Pills section */}
+              <PillSection className="mt-4 md:mt-6" />
+            </div>
+          )}
+    </div>
+  </div>
 
-        {/* Input Area */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleAgentSubmit(e, {
-              data: {
-                annotations: {
-                  hello: "world",
-                },
-              },
-            });
-            setTextareaHeight("auto"); // Reset height after submission
-          }}
-          className="p-3 bg-neutral-50 absolute bottom-0 left-0 right-0 z-10 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
-        >
-          <div className="flex items-center gap-2">
-            <div className="flex-1 relative">
-              <Textarea
-                disabled={pendingToolCallConfirmation}
-                placeholder={
-                  pendingToolCallConfirmation
-                    ? "Please respond to the tool confirmation above..."
-                    : "Send a message..."
-                }
-                className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2  ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base pb-10 dark:bg-neutral-900"
-                value={agentInput}
-                onChange={(e) => {
-                  handleAgentInputChange(e);
-                  // Auto-resize the textarea
-                  e.target.style.height = "auto";
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                  setTextareaHeight(`${e.target.scrollHeight}px`);
-                }}
-                onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    !e.shiftKey &&
-                    !e.nativeEvent.isComposing
-                  ) {
-                    e.preventDefault();
-                    handleAgentSubmit(e as unknown as React.FormEvent);
-                    setTextareaHeight("auto"); // Reset height on Enter submission
-                  }
-                }}
-                rows={2}
-                style={{ height: textareaHeight }}
-              />
-              <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-                {isLoading ? (
-                  <button
-                    type="button"
-                    onClick={stop}
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    aria-label="Stop generation"
-                  >
-                    <Stop size={16} />
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    disabled={pendingToolCallConfirmation || !agentInput.trim()}
-                    aria-label="Send message"
-                  >
-                    <PaperPlaneTilt size={16} />
-                  </button>
-                )}
+      {/* MCP Settings Panel - positioned as an overlay when showMcpPanel is true */}
+      {showMcpPanel && (
+        <div className="fixed inset-0 bg-black/20 dark:bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-md w-full max-w-4xl h-[80vh] overflow-hidden">
+            <div className="h-full flex flex-col">
+              {/* Panel Header */}
+              <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-3">
+                <div className="flex items-center justify-center h-8 w-8">
+                  <Gear size={20} className="text-[rgb(0,104,120)]" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="font-semibold text-base text-[rgb(0,104,120)]">
+                    AI Analysis & MCP Settings
+                  </h2>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Configure AI booking analysis and Model Context Protocol
+                    servers
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  shape="square"
+                  className="rounded-full h-8 w-8"
+                  onClick={() => setShowMcpPanel(false)}
+                >
+                  <X size={18} />
+                </Button>
+              </div>
+
+              {/* Panel Content */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <McpSettings agent={agent} />
               </div>
             </div>
           </div>
-        </form>
+        </div>
+      )}
+
+      {/* Add MCP Server Modal */}
+      <AddServerModal
+        isOpen={showAddMcpDialog}
+        onClose={() => setShowAddMcpDialog(false)}
+        onAddServer={handleAddMcpServer}
+      />
       </div>
-    </div>
+    </Theme>
   );
 }
 
@@ -407,14 +1456,14 @@ function HasOpenAIKey() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
-                  OpenAI API Key Not Configured
+                  Google Generative AI API Key Not Configured
                 </h3>
                 <p className="text-neutral-600 dark:text-neutral-300 mb-1">
                   Requests to the API, including from the frontend UI, will not
-                  work until an OpenAI API key is configured.
+                  work until a Google Generative AI API key is configured.
                 </p>
                 <p className="text-neutral-600 dark:text-neutral-300">
-                  Please configure an OpenAI API key by setting a{" "}
+                  Please configure a Google Generative AI API key by setting a{" "}
                   <a
                     href="https://developers.cloudflare.com/workers/configuration/secrets/"
                     target="_blank"
@@ -425,7 +1474,7 @@ function HasOpenAIKey() {
                   </a>{" "}
                   named{" "}
                   <code className="bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-red-600 dark:text-red-400 font-mono text-sm">
-                    OPENAI_API_KEY
+                    GOOGLE_GENERATIVE_AI_API_KEY
                   </code>
                   . <br />
                   You can also use a different model provider by following these{" "}
@@ -447,3 +1496,5 @@ function HasOpenAIKey() {
   }
   return null;
 }
+
+

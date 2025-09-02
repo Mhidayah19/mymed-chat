@@ -1,43 +1,25 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.1.1/schema.json",
-  "assist": {
-    "actions": {
-      "source": {
-        "useSortedKeys": "on"
-      }
-    },
-    "enabled": true
+  "$schema": "https://biomejs.dev/schemas/2.2.0/schema.json",
+  "vcs": {
+    "enabled": false
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": [
-      "!node_modules",
-      "!dist",
-      "!./worker-configuration.d.ts",
-      "src/**"
+    "includes": ["**/*.{js,jsx,ts,tsx,json}"],
+    "experimentalScannerIgnores": [
+      "node_modules",
+      "dist",
+      "worker-configuration.d.ts"
     ]
   },
   "formatter": {
-    "enabled": false,
-    "indentStyle": "tab"
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "double"
-    }
+    "indentStyle": "space",
+    "indentWidth": 2
   },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
-      "style": {
-        "noNonNullAssertion": "off"
-      }
+      "recommended": true
     }
-  },
-  "vcs": {
-    "clientKind": "git",
-    "enabled": false,
-    "useIgnoreFile": false
   }
 }
