@@ -267,7 +267,7 @@ export const BookingOperationResultCard = ({
       const baseUrl =
         "https://mymediset-xba-dev-eu10.launchpad.cfapps.eu10.hana.ondemand.com/site/mymediset#cloudmymedisetuibookings-manage?sap-ui-app-id-hint=mym_cloud_cloud.mymediset.uibookings&/Bookings";
       // Remove leading zeros from the ID
-      const cleanedId = idForUrl.replace(/^0+/, '');
+      const cleanedId = idForUrl.replace(/^0+/, "");
       const bookingUrl = `${baseUrl}('${cleanedId}')`;
       console.log("🔗 Opening booking URL with ID:", cleanedId);
       window.open(bookingUrl, "_blank");

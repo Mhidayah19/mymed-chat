@@ -28,7 +28,10 @@ const googleProvider = createGoogleGenerativeAI({
 const model = googleProvider("gemini-1.5-flash");
 
 // Debug: Check if API key is loaded
-console.log("Google API Key loaded:", !!process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+console.log(
+  "Google API Key loaded:",
+  !!process.env.GOOGLE_GENERATIVE_AI_API_KEY
+);
 
 // we use ALS to expose the agent context to the tools
 // export const agentContext = new AsyncLocalStorage<Chat>();
@@ -47,7 +50,6 @@ export class Chat extends AIChatAgent<Env> {
       // Continue execution - don't let WebSocket errors break the agent
     }
   }
-
 
   // Override onError to handle server errors gracefully
   onError(connectionOrError: any, error?: unknown) {

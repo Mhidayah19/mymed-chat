@@ -121,14 +121,16 @@ export function AnimatedAiBot({ size = 160 }: { size?: number }) {
       >
         <div className="relative">
           <h2 className="text-2xl font-semibold">
-            <span className="text-black">mymediset</span> <span className="bg-gradient-to-r from-[#00D4FF] via-[#8B5CF6] to-[#00D4FF] bg-clip-text text-transparent">Agent</span>
+            <span className="text-black">mymediset</span>{" "}
+            <span className="bg-gradient-to-r from-[#00D4FF] via-[#8B5CF6] to-[#00D4FF] bg-clip-text text-transparent">
+              Agent
+            </span>
           </h2>
         </div>
         <p className="text-muted-foreground max-w-xs leading-relaxed">
           Your personal assistant at your service. Ready to help with bookings,
           materials, and task scheduling.
         </p>
-
       </div>
     </div>
   );

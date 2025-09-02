@@ -146,8 +146,10 @@ src/App.tsx
 src/components/tool-invocation-card/ToolInvocationCard.tsx
 
 # Project specific
-.bmad-core/
-.claude/
-docs/
-CLAUDE.md
-.cursor/rules/
+/.bmad-core/
+/.claude/
+/.cursor/
+/docs/architecture/
+/docs/prd/
+/CLAUDE.md
+/docs/
