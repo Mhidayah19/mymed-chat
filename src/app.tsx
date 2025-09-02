@@ -32,7 +32,9 @@ import { Avatar } from "@/components/avatar/Avatar";
 import { Toggle } from "@/components/toggle/Toggle";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { TextShimmer } from "@/components/text/text-shimmer";
+import { Pill } from "@/components/pill/Pill";
 import { AnimatedAiBot } from "@/components/animated-ai-bot/AnimatedAiBot";
+import { cn } from "@/lib/utils";
 
 // MyMediset Design System Components
 import { OrganicShape } from "@/components/organic-shape/OrganicShape";
@@ -325,6 +327,27 @@ export default function Chat() {
   };
 
   const activeToolName = getActiveToolName();
+
+  // Shared pill section component
+  const PillSection = ({ className }: { className?: string }) => (
+    <div className={cn("flex flex-wrap justify-center gap-1 sm:gap-2 md:gap-3 lg:gap-4 max-w-4xl mx-auto px-1 sm:px-2", className)}>
+      <Pill 
+        size={window.innerHeight < 720 ? 'sm' : 'md'}
+        onPillClick={(text) => {
+          handleAgentInputChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
+        }}>Create Dr Stephen usual booking</Pill>
+      <Pill 
+        size={window.innerHeight < 720 ? 'sm' : 'md'}
+        onPillClick={(text) => {
+          handleAgentInputChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
+        }}>Recommend some bookings</Pill>
+      <Pill 
+        size={window.innerHeight < 720 ? 'sm' : 'md'}
+        onPillClick={(text) => {
+          handleAgentInputChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
+        }}>Proceed</Pill>
+    </div>
+  );
 
   // Function to refresh MCP servers (extracted for reuse)
   const loadConnectedServers = async () => {
@@ -650,6 +673,7 @@ export default function Chat() {
                 
                 {/* Centered Input Area */}
                 <div className="w-full max-w-4xl">
+                  
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -1153,6 +1177,16 @@ export default function Chat() {
               )}
           </div>
           
+          {(agentMessages.length === 0 && !isLoading) && (
+            <div className="absolute left-0 right-0 flex justify-center z-30 px-2 sm:px-4"
+                 style={{
+                   bottom: window.innerHeight < 720 
+                     ? 'calc(5rem + env(safe-area-inset-bottom) + 8px)' 
+                     : 'calc(5rem + env(safe-area-inset-bottom) + 16px)'
+                 }}>
+              <PillSection className="w-full justify-center" />
+            </div>
+          )}
           {(agentMessages.length > 0 || isLoading) && (
             <div className={`fixed bottom-0 left-0 right-0 z-40 p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-transparent ${drawerOpen ? 'lg:left-64' : ''}`}>
               <form
@@ -1331,6 +1365,9 @@ export default function Chat() {
                   </div>
                 </div>
               </form>
+              
+              {/* Pills section */}
+              <PillSection className="mt-4 md:mt-6" />
             </div>
           )}
     </div>
@@ -1419,14 +1456,14 @@ function HasOpenAIKey() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
-                  OpenAI API Key Not Configured
+                  Google Generative AI API Key Not Configured
                 </h3>
                 <p className="text-neutral-600 dark:text-neutral-300 mb-1">
                   Requests to the API, including from the frontend UI, will not
-                  work until an OpenAI API key is configured.
+                  work until a Google Generative AI API key is configured.
                 </p>
                 <p className="text-neutral-600 dark:text-neutral-300">
-                  Please configure an OpenAI API key by setting a{" "}
+                  Please configure a Google Generative AI API key by setting a{" "}
                   <a
                     href="https://developers.cloudflare.com/workers/configuration/secrets/"
                     target="_blank"
@@ -1437,7 +1474,7 @@ function HasOpenAIKey() {
                   </a>{" "}
                   named{" "}
                   <code className="bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-red-600 dark:text-red-400 font-mono text-sm">
-                    OPENAI_API_KEY
+                    GOOGLE_GENERATIVE_AI_API_KEY
                   </code>
                   . <br />
                   You can also use a different model provider by following these{" "}

@@ -265,9 +265,11 @@ export const BookingOperationResultCard = ({
     const idForUrl = bookingResult.originalBookingId || bookingResult.bookingId;
     if (idForUrl) {
       const baseUrl =
-        "https://mymediset-xba-dev-eu10.launchpad.cfapps.eu10.hana.ondemand.com/site?siteId=04bd86f5-c383-41a9-966a-c97d7744a8ea#cloudmymedisetuibookings-manage?sap-ui-app-id-hint=mymediset_cloud.mymediset.uibookings&/Bookings";
-      const bookingUrl = `${baseUrl}(${idForUrl})`;
-      console.log("🔗 Opening booking URL with ID:", idForUrl);
+        "https://mymediset-xba-dev-eu10.launchpad.cfapps.eu10.hana.ondemand.com/site/mymediset#cloudmymedisetuibookings-manage?sap-ui-app-id-hint=mym_cloud_cloud.mymediset.uibookings&/Bookings";
+      // Remove leading zeros from the ID
+      const cleanedId = idForUrl.replace(/^0+/, '');
+      const bookingUrl = `${baseUrl}('${cleanedId}')`;
+      console.log("🔗 Opening booking URL with ID:", cleanedId);
       window.open(bookingUrl, "_blank");
     }
   };

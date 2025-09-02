@@ -11,7 +11,7 @@ import {
   type ToolSet,
   type CoreMessage,
 } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
 import { processToolCalls } from "./utils";
 import { tools, executions } from "./tools";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -20,7 +20,15 @@ import { AGENT_NAMES } from "./constants";
 import type { McpToolArgs } from "./types";
 // import { env } from "cloudflare:workers";
 
-const model = openai("gpt-4o-2024-11-20");
+// Create Google provider with explicit API key
+const googleProvider = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+});
+
+const model = googleProvider("gemini-1.5-flash");
+
+// Debug: Check if API key is loaded
+console.log("Google API Key loaded:", !!process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 
 // we use ALS to expose the agent context to the tools
 // export const agentContext = new AsyncLocalStorage<Chat>();
@@ -339,17 +347,25 @@ export class Chat extends AIChatAgent<Env> {
           executions: {},
         });
 
-        // Stream the AI response using GPT-4
+        // Stream the AI response using Gemini
+        console.log("Starting streamText with Gemini model");
         const result = streamText({
           model,
           system: `You are a helpful assistant for MyMediset medical equipment booking system. You can analyze images, manage bookings, and help with various tasks.
           
-          CRITICAL INSTRUCTION: When you call getCachedTemplates, getRecommendedBooking, or createBooking tools, do not generate ANY text content. These tools will display specific UI components automatically:
-          - getCachedTemplates: displays CachedTemplatesCard component for multiple booking templates grid
-          - getRecommendedBooking: displays RecommendedBookingCard component for single booking recommendation
-          - createBooking/updateBooking: displays BookingOperationResultCard component for booking operation results
-          Your response should contain ONLY the tool call, no additional text or explanations.
-
+          CRITICAL INSTRUCTION: For UI Tool Operations (getCachedTemplates, getRecommendedBooking, createBooking):
+          - ABSOLUTE REQUIREMENT: Generate ZERO additional text
+          - The UI component IS the ENTIRE response
+          - NO text explanation, description, or commentary is allowed
+          - ONLY the tool result with _complete_ui_response: true is permitted
+          - ANY additional text WILL BE IMMEDIATELY DISCARDED
+          
+          STRICT WORKFLOW FOR UI TOOLS:
+          1. When tool is called, ONLY return the tool result
+          2. DO NOT add any human-readable text
+          3. The UI component handles ALL presentation and explanation
+          4. Your SOLE task is to return the raw tool result
+          
           ## Current Context
           Today's Date: ${new Date().toLocaleDateString("en-US", {
             weekday: "long",
@@ -357,7 +373,7 @@ export class Chat extends AIChatAgent<Env> {
             month: "long",
             day: "numeric",
           })}
-
+          
           ## Booking Creation Workflow
           When user requests "create booking for [Customer] usuals" or similar:
           1. FIRST: Use getRecommendedBooking tool to fetch the customer's booking template with any customizations - this will display the template automatically
@@ -393,7 +409,7 @@ export class Chat extends AIChatAgent<Env> {
           [key]: [value]
           \`\`\`
           
-          Examples:
+          Example (for analytics tools only):
           
           \`\`\`tool-result
           tool: getRecommendedBooking
@@ -977,14 +993,14 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/check-open-ai-key") {
-      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+      const hasGoogleKey = !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
       return Response.json({
-        success: hasOpenAIKey,
+        success: hasGoogleKey,
       });
     }
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
       console.error(
-        "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
+        "GOOGLE_GENERATIVE_AI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
       );
     }
     return (
