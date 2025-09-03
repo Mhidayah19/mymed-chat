@@ -69,9 +69,19 @@ export const GenericToolResultCard = ({
     };
   }, []);
 
+  // Get all fields to display (exclude tool, status, title)
+  const getDisplayFields = () => {
+    const { tool, status, title, ...fields } = result;
+    return fields;
+  };
+
+  // Calculate total animation stages: 1 (title) + number of fields + 1 (status)
+  const displayFields = getDisplayFields();
+  const totalStages = 1 + Object.keys(displayFields).length + 1;
+
   // Sequential animation
   useEffect(() => {
-    if (animationStage < 3) {
+    if (animationStage < totalStages) {
       const timer = setTimeout(() => {
         setAnimationStage((prev) => prev + 1);
       }, 300);
@@ -84,7 +94,7 @@ export const GenericToolResultCard = ({
 
       return () => clearTimeout(timer);
     }
-  }, [animationStage]);
+  }, [animationStage, totalStages]);
 
   // Get tool icon and colors
   const getToolConfig = () => {
@@ -135,256 +145,121 @@ export const GenericToolResultCard = ({
       .trim();
   };
 
-  // Render any value dynamically
-  const renderValue = (value: any, key?: string, depth = 0): JSX.Element => {
+  // Render any value dynamically (simplified for booking card style)
+  const renderValue = (value: any): string => {
     if (value === null || value === undefined) {
-      return <span className="text-gray-400 italic">null</span>;
+      return "N/A";
     }
 
     if (typeof value === "boolean") {
-      return (
-        <span
-          className={`px-2 py-1 rounded-full text-xs font-medium ${
-            value ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-          }`}
-        >
-          {value ? "Yes" : "No"}
-        </span>
-      );
+      return value ? "Yes" : "No";
     }
 
     if (typeof value === "string" || typeof value === "number") {
-      return <span className="text-gray-700">{value.toString()}</span>;
+      return value.toString();
     }
 
     if (Array.isArray(value)) {
       if (value.length === 0) {
-        return <span className="text-gray-400 italic">Empty list</span>;
+        return "None";
       }
-
-      return (
-        <div className="space-y-3">
-          {value.map((item, index) => (
-            <div
-              key={index}
-              className="bg-white/40 backdrop-blur-sm rounded-lg p-3 border border-white/30"
-            >
-              {typeof item === "string" ? (
-                // Simple string item
-                <div className="flex items-start gap-2">
-                  <span className="text-[#8B5CF6] text-xs mt-1 font-bold">
-                    •
-                  </span>
-                  <span className="text-gray-700 font-medium">{item}</span>
-                </div>
-              ) : (
-                // Complex object item - render with better structure
-                <div className="space-y-2">
-                  {typeof item === "object" && item !== null ? (
-                    Object.entries(item).map(([subKey, subValue]) => {
-                      // Handle the title specially
-                      if (subKey === "title") {
-                        return (
-                          <div
-                            key={subKey}
-                            className="font-semibold text-[#00D4FF] text-base mb-3 pb-2 border-b border-[#00D4FF]/20"
-                          >
-                            {subValue as string}
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={subKey}
-                          className="flex items-start gap-3 text-sm"
-                        >
-                          <span className="font-medium text-gray-600 min-w-[100px] capitalize">
-                            {subKey.replace(/([A-Z])/g, " $1").trim()}:
-                          </span>
-                          <span className="text-gray-700 flex-1">
-                            {renderValue(subValue, subKey, depth + 1)}
-                          </span>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="flex items-start gap-2">
-                      <span className="text-[#8B5CF6] text-xs mt-1 font-bold">
-                        •
-                      </span>
-                      <div className="flex-1">
-                        {renderValue(item, `${key}[${index}]`, depth + 1)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      );
+      
+      // For simple arrays, join with commas
+      if (value.every(item => typeof item === "string" || typeof item === "number")) {
+        return value.join(", ");
+      }
+      
+      // For complex arrays, show count
+      return `${value.length} items`;
     }
 
     if (typeof value === "object") {
+      // For objects, show a simple summary
       const entries = Object.entries(value);
       if (entries.length === 0) {
-        return <span className="text-gray-400 italic">Empty object</span>;
+        return "Empty";
       }
-
-      return (
-        <div
-          className={`space-y-2 ${depth > 0 ? "ml-4 pl-4 border-l border-gray-200" : ""}`}
-        >
-          {entries.map(([subKey, subValue]) => (
-            <div key={subKey} className="flex items-start gap-3">
-              <span className="font-medium text-black min-w-[100px] capitalize">
-                {subKey.replace(/([A-Z])/g, " $1").trim()}:
-              </span>
-              <div className="flex-1">
-                {renderValue(subValue, subKey, depth + 1)}
-              </div>
-            </div>
-          ))}
-        </div>
-      );
+      
+      // Try to find a meaningful display value
+      if (value.title) {
+        return value.title.toString();
+      }
+      if (value.name) {
+        return value.name.toString();
+      }
+      if (value.id) {
+        return value.id.toString();
+      }
+      
+      return `${entries.length} properties`;
     }
 
-    return <span className="text-gray-700">{JSON.stringify(value)}</span>;
+    return JSON.stringify(value);
   };
 
-  // Get all fields to display (exclude tool, status, title)
-  const getDisplayFields = () => {
-    const { tool, status, title, ...fields } = result;
-    return fields;
-  };
-
-  const displayFields = getDisplayFields();
   const hasFields = Object.keys(displayFields).length > 0;
 
   return (
     <div
-      className={`
-        ${toolConfig.bgColor} 
-        backdrop-blur-md backdrop-filter 
-        rounded-[20px] border ${toolConfig.borderColor} 
-        ${toolConfig.shadowColor}
-        my-4 overflow-hidden
-        transition-all duration-300 hover:scale-[1.02] hover:shadow-lg
-      `}
+      className="bg-white dark:bg-neutral-800 rounded-md border-2 border-neutral-300 dark:border-neutral-600 shadow-sm my-2 cursor-pointer hover:shadow-md transition-shadow"
     >
-      <div className="p-6">
+      <div className="p-3">
         {/* Header with tool icon and title */}
-        <div className="flex items-start gap-4 mb-6">
-          <div className={`${toolConfig.iconColor} fade-in mt-1`}>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="text-[rgb(0,104,120)] fade-in">
             {toolConfig.icon}
           </div>
-          <div className="flex-1">
-            <h3
-              className={`font-semibold text-base ${toolConfig.titleColor} fade-in ${animationStage >= 1 ? "typing-animation" : "opacity-0"}`}
+          <span
+            className={`font-medium text-sm fade-in ${animationStage >= 1 ? "typing-animation" : "opacity-0"}`}
+          >
+            {getDisplayTitle()}
+            {animationStage === 1 && showTypingCursor && (
+              <span className="typing-cursor">&nbsp;</span>
+            )}
+          </span>
+          {result.status && animationStage >= totalStages && (
+            <span
+              className={`ml-auto text-xs px-2 py-0.5 rounded-full fade-in ${
+                result.status === "success"
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  : result.status === "error"
+                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+              }`}
+              style={{ animationDelay: `${200 + Object.keys(displayFields).length * 100}ms` }}
             >
-              {getDisplayTitle()}
-              {animationStage === 1 && showTypingCursor && (
-                <span className="typing-cursor">&nbsp;</span>
-              )}
-            </h3>
-          </div>
+              {result.status.charAt(0).toUpperCase() + result.status.slice(1)}
+            </span>
+          )}
         </div>
 
         {/* Dynamic content rendering */}
         {hasFields && (
-          <div className="space-y-4 fade-in delay-300">
+          <div className="grid grid-cols-1 gap-1 text-xs text-neutral-600 dark:text-neutral-300">
             {Object.entries(displayFields).map(([key, value], index) => (
               <div
                 key={key}
-                className="fade-in"
-                style={{ animationDelay: `${300 + index * 100}ms` }}
+                className={`flex items-center fade-in ${animationStage >= index + 2 ? "" : "opacity-0"}`}
+                style={{ animationDelay: `${200 + index * 100}ms` }}
               >
-                {/* Special handling for templates array */}
-                {key === "templates" && Array.isArray(value) ? (
-                  <div className="space-y-4">
-                    <span className="font-medium text-black capitalize block text-lg">
-                      {key.replace(/([A-Z])/g, " $1").trim()}:
-                    </span>
-                    <div className="space-y-4">
-                      {value.map((template, idx) => (
-                        <div
-                          key={idx}
-                          className="p-5 bg-white/70 backdrop-blur-sm rounded-xl border border-[#00D4FF]/20 shadow-lg"
-                        >
-                          {typeof template === "object" && template !== null ? (
-                            <div className="space-y-4">
-                              {/* Template title - hospital/clinic name */}
-                              {template.title && (
-                                <div className="font-bold text-[#00D4FF] text-lg pb-3 border-b border-[#00D4FF]/20">
-                                  {template.title}
-                                </div>
-                              )}
-
-                              {/* Template details */}
-                              <div className="grid grid-cols-1 gap-3">
-                                {Object.entries(template).map(
-                                  ([subKey, subValue]) => {
-                                    if (subKey === "title") return null; // Skip title, already rendered
-
-                                    // Format the key name for display
-                                    const displayKey = subKey
-                                      .replace(/([A-Z])/g, " $1")
-                                      .replace(/([a-z])([A-Z])/g, "$1 $2")
-                                      .trim()
-                                      .split(" ")
-                                      .map(
-                                        (word) =>
-                                          word.charAt(0).toUpperCase() +
-                                          word.slice(1)
-                                      )
-                                      .join(" ");
-
-                                    return (
-                                      <div
-                                        key={subKey}
-                                        className="flex items-start gap-3 text-sm p-3 bg-white/40 rounded-lg"
-                                      >
-                                        <span className="font-semibold text-gray-700 min-w-[120px]">
-                                          {displayKey}:
-                                        </span>
-                                        <span className="text-gray-800 flex-1 font-medium">
-                                          {subValue as string}
-                                        </span>
-                                      </div>
-                                    );
-                                  }
-                                )}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-gray-700">
-                              {template as string}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : key !== "tool" && key !== "status" && key !== "title" ? (
-                  <div className="p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20">
-                    <div className="flex flex-col gap-2">
-                      <span className="font-medium text-black capitalize block">
-                        {key.replace(/([A-Z])/g, " $1").trim()}:
-                      </span>
-                      <div className="pl-2">{renderValue(value, key)}</div>
-                    </div>
-                  </div>
-                ) : null}
+                <span className="font-medium mr-2 capitalize">
+                  {key.replace(/([A-Z])/g, " $1").trim()}:
+                </span>
+                <span>
+                  {renderValue(value)}
+                  {animationStage === index + 2 && showTypingCursor && (
+                    <span className="typing-cursor">&nbsp;</span>
+                  )}
+                </span>
               </div>
             ))}
           </div>
         )}
 
         {/* Fallback if no displayable fields */}
-        {!hasFields && (
-          <div className="p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20 text-center fade-in delay-300">
-            <span className="text-gray-500 italic">
+        {!hasFields && animationStage >= 2 && (
+          <div className="text-xs text-neutral-600 dark:text-neutral-300 text-center fade-in delay-200">
+            <span className="italic">
               Tool executed successfully
             </span>
           </div>

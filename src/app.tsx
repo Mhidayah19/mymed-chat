@@ -19,9 +19,7 @@ interface Server {
 
 // Type for booking templates response
 
-import ReactMarkdown from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { Streamdown } from "streamdown";
 import aiIcon from "./assets/AI.svg";
 
 // Component imports
@@ -1041,8 +1039,8 @@ export default function Chat() {
                       className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`flex gap-1 sm:gap-2 max-w-[98%] sm:max-w-[98%] ${
-                          isUser ? "flex-row-reverse" : "flex-row"
+                        className={`flex gap-1 sm:gap-2 ${
+                          isUser ? "flex-row-reverse max-w-[98%] sm:max-w-[98%]" : "flex-row w-full"
                         }`}
                       >
                         {/* Avatar removed */}
@@ -1059,146 +1057,134 @@ export default function Chat() {
                                 return (
                                   // biome-ignore lint/suspicious/noArrayIndexKey: it's fine here
                                   <div key={i}>
-                                    <Card
-                                      className={`p-3 sm:p-4 rounded-lg w-full ${
-                                        isUser
-                                          ? "rounded-br-none bg-black border border-gray-300 text-white"
-                                          : "rounded-bl-none bg-[var(--color-chat-ai-bubble)] border border-[var(--color-chat-ai-border)] text-gray-600 shadow-sm"
-                                      } ${
-                                        part.text.startsWith(
+                                    {isUser ? (
+                                      <Card
+                                        className={`p-3 sm:p-4 rounded-lg w-full rounded-br-none bg-black border border-gray-300 text-white ${
+                                          part.text.startsWith(
+                                            "scheduled message"
+                                          )
+                                            ? "border-accent/50"
+                                            : ""
+                                        } relative`}
+                                      >
+                                        {part.text.startsWith(
                                           "scheduled message"
-                                        )
-                                          ? "border-accent/50"
-                                          : ""
-                                      } relative`}
-                                    >
-                                      {part.text.startsWith(
-                                        "scheduled message"
-                                      ) && (
-                                        <span className="absolute -top-3 -left-2 text-base">
-                                          🕒
-                                        </span>
-                                      )}
-                                      {part.text.startsWith(
-                                        "scheduled message"
-                                      ) ? (
-                                        <p className="text-sm sm:text-base whitespace-pre-wrap">
-                                          {part.text.replace(
-                                            /^scheduled message: /,
-                                            ""
-                                          )}
-                                        </p>
-                                      ) : (
-                                        <div
-                                          className={`prose ${isUser ? "dark:prose-invert" : "dark:prose-invert"} prose-sm sm:prose-base max-w-none`}
-                                        >
-                                          {/* Process all card types */}
-                                          {(() => {
-                                            // Parse generic tool results
-                                            const toolResults = parseToolResults(
-                                              part.text
-                                            );
-                                            let remainingText = removeToolResultsFromText(
-                                              part.text
-                                            );
-
-                                            // Parse regular bookings from remaining text
-                                            const bookings = parseBookingInfo(
-                                              remainingText
-                                            );
-                                            remainingText = removeBookingsFromText(
-                                              remainingText
-                                            );
-
-                                            // Finally parse materials from remaining text
-                                            const materials =
-                                              parseMaterialInfo(
-                                                remainingText
+                                        ) && (
+                                          <span className="absolute -top-3 -left-2 text-base">
+                                            🕒
+                                          </span>
+                                        )}
+                                        {part.text.startsWith(
+                                          "scheduled message"
+                                        ) ? (
+                                          <p className="text-sm sm:text-base whitespace-pre-wrap">
+                                            {part.text.replace(
+                                              /^scheduled message: /,
+                                              ""
+                                            )}
+                                          </p>
+                                        ) : (
+                                          <div className="prose dark:prose-invert prose-sm sm:prose-base max-w-none">
+                                            <Streamdown>{part.text}</Streamdown>
+                                          </div>
+                                        )}
+                                      </Card>
+                                    ) : (
+                                      <div className="w-full max-w-full">
+                                        {part.text.startsWith(
+                                          "scheduled message"
+                                        ) ? (
+                                          <div className="relative w-full">
+                                            <span className="absolute -top-3 -left-2 text-base">
+                                              🕒
+                                            </span>
+                                            <p className="text-sm sm:text-base whitespace-pre-wrap text-gray-600 w-full">
+                                              {part.text.replace(
+                                                /^scheduled message: /,
+                                                ""
+                                              )}
+                                            </p>
+                                          </div>
+                                        ) : (
+                                          <div className="prose dark:prose-invert prose-sm sm:prose-base max-w-none text-gray-600 w-full break-words">
+                                            {/* Process all card types */}
+                                            {(() => {
+                                              // Parse generic tool results
+                                              const toolResults = parseToolResults(
+                                                part.text
                                               );
-                                            const textWithoutMaterials =
-                                              removeMaterialsFromText(
-                                                remainingText
+                                              let remainingText = removeToolResultsFromText(
+                                                part.text
                                               );
 
-                                            // Return clean text and all card types
-                                            return (
-                                              <>
-                                                {/* @ts-ignore - TypeScript issues with ReactMarkdown components */}
-                                                <ReactMarkdown
-                                                  children={
-                                                    textWithoutMaterials
-                                                  }
-                                                  components={{
-                                                    code: ({ children }) => {
-                                                      return (
-                                                        <code
-                                                          className={`${isUser ? "bg-neutral-300 dark:bg-neutral-600 text-neutral-900 dark:text-white border border-neutral-400 dark:border-neutral-500" : "bg-gray-800 text-white"} px-1 py-0.5 rounded`}
-                                                        >
-                                                          {children}
-                                                        </code>
-                                                      );
-                                                    },
-                                                    img: ({ src, alt }) => {
-                                                      return (
-                                                        <img
-                                                          src={src}
-                                                          alt={alt || ""}
-                                                          className="rounded-md max-w-[300px] w-auto h-auto my-2"
-                                                          loading="lazy"
-                                                          style={{
-                                                            maxWidth: "300px",
-                                                          }}
-                                                        />
-                                                      );
-                                                    },
-                                                  }}
-                                                />
+                                              // Parse regular bookings from remaining text
+                                              const bookings = parseBookingInfo(
+                                                remainingText
+                                              );
+                                              remainingText = removeBookingsFromText(
+                                                remainingText
+                                              );
 
+                                              // Finally parse materials from remaining text
+                                              const materials =
+                                                parseMaterialInfo(
+                                                  remainingText
+                                                );
+                                              const textWithoutMaterials =
+                                                removeMaterialsFromText(
+                                                  remainingText
+                                                );
 
-                                                {toolResults.length > 0 && (
-                                                  <div className="mt-3">
-                                                    {toolResults.map(
-                                                      (result, idx) => (
-                                                        <GenericToolResultCard
-                                                          key={idx}
-                                                          result={result}
-                                                        />
-                                                      )
-                                                    )}
-                                                  </div>
-                                                )}
+                                              // Return clean text and all card types
+                                              return (
+                                                <>
+                                                  <Streamdown>{textWithoutMaterials}</Streamdown>
 
-                                                {bookings.length > 0 && (
-                                                  <div className="mt-3">
-                                                    {bookings.map(
-                                                      (booking, idx) => (
-                                                        <ChatBookingCard
-                                                          key={idx}
-                                                          booking={booking}
-                                                        />
-                                                      )
-                                                    )}
-                                                  </div>
-                                                )}
+                                                  {toolResults.length > 0 && (
+                                                    <div className="mt-3">
+                                                      {toolResults.map(
+                                                        (result, idx) => (
+                                                          <GenericToolResultCard
+                                                            key={idx}
+                                                            result={result}
+                                                          />
+                                                        )
+                                                      )}
+                                                    </div>
+                                                  )}
 
-                                                {materials.length > 0 && (
-                                                  <div className="mt-3">
-                                                    {materials.map(
-                                                      (material, idx) => (
-                                                        <ChatMaterialCard
-                                                          key={idx}
-                                                          material={material}
-                                                        />
-                                                      )
-                                                    )}
-                                                  </div>
-                                                )}
-                                              </>
-                                            );
-                                          })()}
-                                        </div>
-                                      )}
-                                    </Card>
+                                                  {bookings.length > 0 && (
+                                                    <div className="mt-3">
+                                                      {bookings.map(
+                                                        (booking, idx) => (
+                                                          <ChatBookingCard
+                                                            key={idx}
+                                                            booking={booking}
+                                                          />
+                                                        )
+                                                      )}
+                                                    </div>
+                                                  )}
+
+                                                  {materials.length > 0 && (
+                                                    <div className="mt-3">
+                                                      {materials.map(
+                                                        (material, idx) => (
+                                                          <ChatMaterialCard
+                                                            key={idx}
+                                                            material={material}
+                                                          />
+                                                        )
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                </>
+                                              );
+                                            })()}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                     <p
                                       className={`text-[10px] sm:text-xs text-muted-foreground mt-1 ${
                                         isUser ? "text-right" : "text-left"

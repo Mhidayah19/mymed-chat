@@ -136,7 +136,7 @@ export function ToolInvocationCard({
 
   return (
     <div
-      className="p-3 sm:p-4 my-3 w-full rounded-bl-none overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 relative"
+      className="p-3 sm:p-4 my-3 w-full rounded-md overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md transform hover:-translate-y-0.5 relative"
       style={{
         background: 'white',
         border: needsConfirmation 
