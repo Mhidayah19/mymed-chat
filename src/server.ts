@@ -11,7 +11,7 @@ import {
   type ToolSet,
   type CoreMessage,
 } from "ai";
-import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
+import { openai } from "@ai-sdk/openai";
 import { processToolCalls } from "./utils";
 import { tools, executions } from "./tools";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -20,17 +20,13 @@ import { AGENT_NAMES } from "./constants";
 import type { McpToolArgs } from "./types";
 // import { env } from "cloudflare:workers";
 
-// Create Google provider with explicit API key
-const googleProvider = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
-
-const model = googleProvider("gemini-1.5-flash");
+// Create OpenAI model with explicit API key
+const model = openai("gpt-4o-2024-11-20");
 
 // Debug: Check if API key is loaded
 console.log(
-  "Google API Key loaded:",
-  !!process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  "OpenAI API Key loaded:",
+  !!process.env.OPENAI_API_KEY
 );
 
 // we use ALS to expose the agent context to the tools
@@ -337,6 +333,14 @@ export class Chat extends AIChatAgent<Env> {
       ...bookingAnalysisTools,
     };
 
+    // Debug: Log all tool names to identify Gemini naming issues
+    console.log("=== TOOL NAMES DEBUG ===");
+    Object.keys(allTools).forEach((toolName, index) => {
+      const isValid = /^[a-zA-Z_][a-zA-Z0-9_.-]{0,63}$/.test(toolName);
+      console.log(`${index + 1}. "${toolName}" - ${isValid ? '✅ VALID' : '❌ INVALID'}`);
+    });
+    console.log("========================");
+
     // Create a streaming response that handles both text and tool outputs
     const dataStreamResponse = createDataStreamResponse({
       execute: async (dataStream) => {
@@ -349,11 +353,12 @@ export class Chat extends AIChatAgent<Env> {
           executions: {},
         });
 
-        // Stream the AI response using Gemini
-        console.log("Starting streamText with Gemini model");
+        // Stream the AI response using OpenAI
+        console.log("Starting streamText with OpenAI model");
         const result = streamText({
           model,
-          system: `You are a helpful assistant for MyMediset medical equipment booking system. You can analyze images, manage bookings, and help with various tasks.
+          system: `You are a helpful assistant for MyMediset medical equipment booking system. You can manage bookings, and help with various tasks.
+           Keep your responses concise and to the point.
           
           CRITICAL INSTRUCTION: For UI Tool Operations (getCachedTemplates, getRecommendedBooking, createBooking):
           - ABSOLUTE REQUIREMENT: Generate ZERO additional text
@@ -413,7 +418,7 @@ export class Chat extends AIChatAgent<Env> {
           
           Example (for analytics tools only):
           
-          \`\`\`tool-result
+          
           tool: getRecommendedBooking
           status: success
           title: Booking Recommendation Generated
@@ -421,7 +426,7 @@ export class Chat extends AIChatAgent<Env> {
           surgeon: Dr Stephen Hawkins
           equipment: Cranial Kit
           itemCount: 5
-          \`\`\`
+          
 
           ## Available Tools
           - getRecommendedBooking: Fetches customer's booking template with customizations (date, time, notes) - displays RecommendedBookingCard component
@@ -460,7 +465,23 @@ export class Chat extends AIChatAgent<Env> {
           - For analytics and other non-UI tools, use the tool-result markdown format
           - CRITICAL: Never generate text after getCachedTemplates, getRecommendedBooking, or createBooking - the UI components handle everything automatically`,
           messages: processedMessages,
-          tools: allTools,
+          tools: Object.fromEntries(
+            Object.entries(allTools).map(([name, tool]) => {
+              const sanitizedName = name.replace(/^[^a-zA-Z_]/, '_').replace(/[^a-zA-Z0-9_.-]/g, '_').substring(0, 64);
+              
+              // Create a wrapper that preserves original tool execution
+              return [sanitizedName, {
+                ...tool,
+                execute: async (args: any) => {
+                  // Use type assertion to bypass type checking
+                  if ((allTools as Record<string, any>)[name] && (allTools as Record<string, any>)[name].execute) {
+                    return await (allTools as Record<string, any>)[name].execute(args);
+                  }
+                  return tool.execute ? await tool.execute(args) : {};
+                }
+              }];
+            })
+          ),
           experimental_telemetry: {
             isEnabled: true,
           },
@@ -995,14 +1016,14 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/check-open-ai-key") {
-      const hasGoogleKey = !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
       return Response.json({
-        success: hasGoogleKey,
+        success: hasOpenAIKey,
       });
     }
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
       console.error(
-        "GOOGLE_GENERATIVE_AI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
+        "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
       );
     }
     return (

@@ -129,17 +129,43 @@ const pulseAnimation = `
 
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
-    // Check localStorage first, default to dark if not found
+    // Check localStorage first, default to light if not found
     const savedTheme = localStorage.getItem("theme");
-    return (savedTheme as "dark" | "light") || "dark";
+    return (savedTheme as "dark" | "light") || "light";
   });
   const [showDebug, setShowDebug] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLargeScreen, setIsLargeScreen] = useState(true);
   const [showMcpPanel, setShowMcpPanel] = useState(false);
   const [showAddMcpDialog, setShowAddMcpDialog] = useState(false);
   const [servers, setServers] = useState<Server[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+
+  // Welcome animation states
+  const [showWelcomeInput, setShowWelcomeInput] = useState(false);
+  const [showWelcomePills, setShowWelcomePills] = useState(false);
+
+  // Track screen size for responsive behavior
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const isLarge = window.innerWidth >= 1024;
+      setIsLargeScreen(isLarge);
+      
+      // Reset sidebar state when switching between desktop/mobile
+      if (isLarge) {
+        setMobileMenuOpen(false);
+      } else {
+        setSidebarExpanded(false);
+      }
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -169,6 +195,7 @@ export default function Chat() {
       document.head.removeChild(styleElement);
     };
   }, []);
+
 
   // Scroll to bottom on mount
   useEffect(() => {
@@ -227,6 +254,24 @@ export default function Chat() {
       setLoadingMessageIndex(0);
     }
   }, [isLoading]);
+
+  // Welcome animation sequence - only on first load when no messages
+  useEffect(() => {
+    if (agentMessages.length === 0 && !isLoading) {
+      // Reset animation states
+      setShowWelcomeInput(false);
+      setShowWelcomePills(false);
+      
+      // Staggered animation timers
+      const inputTimer = setTimeout(() => setShowWelcomeInput(true), 1800); // After bot + message
+      const pillsTimer = setTimeout(() => setShowWelcomePills(true), 2200); // 400ms after input
+      
+      return () => {
+        clearTimeout(inputTimer);
+        clearTimeout(pillsTimer);
+      };
+    }
+  }, [agentMessages.length, isLoading]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -299,9 +344,25 @@ export default function Chat() {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const toggleDrawer = () => {
-    setDrawerOpen(!drawerOpen);
+  // Mobile menu toggle
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
   };
+
+  // Sidebar hover handlers with debouncing (desktop only)
+  const handleSidebarMouseEnter = useCallback(() => {
+    // Only enable hover expand on larger screens
+    if (isLargeScreen) {
+      setSidebarExpanded(true);
+    }
+  }, [isLargeScreen]);
+
+  const handleSidebarMouseLeave = useCallback(() => {
+    // Only enable hover collapse on larger screens
+    if (isLargeScreen) {
+      setSidebarExpanded(false);
+    }
+  }, [isLargeScreen]);
 
   // Find active tool if any
   const getActiveToolName = () => {
@@ -328,21 +389,26 @@ export default function Chat() {
 
   const activeToolName = getActiveToolName();
 
-  // Shared pill section component
+  // Helper to determine if sidebar should show expanded content
+  const shouldShowExpanded = () => {
+    return sidebarExpanded || !isLargeScreen;
+  };
+
+  // Shared pill section component - now responsive to sidebar state
   const PillSection = ({ className }: { className?: string }) => (
     <div className={cn("flex flex-wrap justify-center gap-1 sm:gap-2 md:gap-3 lg:gap-4 max-w-4xl mx-auto px-1 sm:px-2", className)}>
       <Pill 
-        size={window.innerHeight < 720 ? 'sm' : 'md'}
+        size="md"
         onPillClick={(text) => {
           handleAgentInputChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
         }}>Create Dr Stephen usual booking</Pill>
       <Pill 
-        size={window.innerHeight < 720 ? 'sm' : 'md'}
+        size="md"
         onPillClick={(text) => {
           handleAgentInputChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
         }}>Recommend some bookings</Pill>
       <Pill 
-        size={window.innerHeight < 720 ? 'sm' : 'md'}
+        size="md"
         onPillClick={(text) => {
           handleAgentInputChange({ target: { value: text } } as React.ChangeEvent<HTMLInputElement>);
         }}>Proceed</Pill>
@@ -537,133 +603,224 @@ export default function Chat() {
 
       {/* Layout Container */}
       <div className="flex flex-1 h-full overflow-hidden relative z-10">
-        {/* Overlay for mobile */}
-        {drawerOpen && (
+
+        {/* Mobile Overlay */}
+        {mobileMenuOpen && (
           <div
             className="fixed inset-0 bg-black/20 dark:bg-black/50 z-20 lg:hidden"
-            onClick={toggleDrawer}
+            onClick={toggleMobileMenu}
           />
         )}
 
-        {/* Drawer/Sidebar */}
+        {/* Collapsible Hover Sidebar */}
         <div
-          className={`fixed lg:fixed w-64 h-full z-30 transform transition-transform duration-300 ease-in-out ${
-            drawerOpen ? "translate-x-0" : "-translate-x-full"
-          } bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 shadow-lg`}
+          className={`fixed top-0 left-0 h-screen z-30 transition-all duration-300 ease-out bg-slate-50 border-r border-neutral-200 dark:border-neutral-800 shadow-lg 
+            ${sidebarExpanded ? "lg:w-64" : "lg:w-16"}
+            lg:translate-x-0
+            ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+            w-64
+          `}
+          onMouseEnter={handleSidebarMouseEnter}
+          onMouseLeave={handleSidebarMouseLeave}
         >
-          <div className="flex items-center justify-between h-16 px-4 border-b border-neutral-200 dark:border-neutral-800">
-            <div className="flex items-center">{/* Logo removed */}</div>
-            <Button
-              variant="ghost"
-              size="sm"
-              shape="square"
-              className="rounded-full lg:hidden"
-              onClick={toggleDrawer}
-            >
-              <X size={18} />
-            </Button>
-          </div>
-
-          <div className="p-4">
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium mb-2">Settings</h3>
-                <div className="flex items-center justify-between bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md">
-                  <div className="flex items-center gap-2">
-                    {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
-                    <span className="text-sm">Theme</span>
-                  </div>
-                  <Toggle
-                    toggled={theme === "dark"}
-                    aria-label="Toggle theme"
-                    onClick={toggleTheme}
-                  />
-                </div>
-                <div className="flex items-center justify-between bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md mt-2">
-                  <div className="flex items-center gap-2">
-                    <Bug size={16} />
-                    <span className="text-sm">Debug Mode</span>
-                  </div>
-                  <Toggle
-                    toggled={showDebug}
-                    aria-label="Toggle debug mode"
-                    onClick={() => setShowDebug((prev) => !prev)}
-                  />
-                </div>
-                <div className="flex items-center justify-between bg-neutral-100 dark:bg-neutral-800 p-3 rounded-md mt-2">
-                  <div className="flex items-center gap-2">
-                    <Gear size={16} />
-                    <span className="text-sm">AI Analysis & MCP</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    shape="circular"
-                    className="h-6 w-6"
-                    onClick={() => setShowMcpPanel(!showMcpPanel)}
+          {/* Navigation Items */}
+          <div className="p-2 w-full pt-8">
+            <div className="space-y-2 w-full">
+              {/* Theme Toggle */}
+              <div className="w-full">
+                <Tooltip content="Theme">
+                  <div
+                    className={`flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-md transition-all duration-300 w-full ${
+                      shouldShowExpanded() ? "p-3 justify-between" : "p-3 justify-center"
+                    }`}
                   >
-                    <Gear size={14} />
-                  </Button>
-                </div>
+                  {shouldShowExpanded() ? (
+                    <>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
+                        <span className="text-sm truncate">Theme</span>
+                      </div>
+                      <div className="flex-shrink-0 ml-2">
+                        <Toggle
+                          toggled={theme === "dark"}
+                          aria-label="Toggle theme"
+                          onClick={toggleTheme}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      onClick={toggleTheme}
+                      className="p-0 bg-transparent border-none cursor-pointer"
+                      aria-label="Toggle theme"
+                    >
+                      {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
+                    </button>
+                  )}
+                  </div>
+                </Tooltip>
               </div>
 
+              {/* Debug Mode Toggle */}
+              <div className="w-full">
+                <Tooltip content="Debug Mode">
+                  <div
+                    className={`flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-md transition-all duration-300 w-full ${
+                      shouldShowExpanded() ? "p-3 justify-between" : "p-3 justify-center"
+                    }`}
+                  >
+                  {shouldShowExpanded() ? (
+                    <>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Bug size={16} />
+                        <span className="text-sm truncate">Debug Mode</span>
+                      </div>
+                      <div className="flex-shrink-0 ml-2">
+                        <Toggle
+                          toggled={showDebug}
+                          aria-label="Toggle debug mode"
+                          onClick={() => setShowDebug((prev) => !prev)}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setShowDebug((prev) => !prev)}
+                      className={`p-0 bg-transparent border-none cursor-pointer ${
+                        showDebug ? "text-blue-500" : ""
+                      }`}
+                      aria-label="Toggle debug mode"
+                    >
+                      <Bug size={16} />
+                    </button>
+                  )}
+                  </div>
+                </Tooltip>
+              </div>
 
-              <div className="pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-800">
-                <Button
-                  variant="ghost"
-                  size="md"
-                  className="w-full justify-start text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-                  onClick={clearHistory}
-                >
-                  <Trash size={16} className="mr-2" />
-                  Clear conversation
-                </Button>
+              {/* MCP Settings */}
+              <div className="w-full">
+                <Tooltip content="AI Analysis & MCP">
+                  <div
+                    className={`flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-md transition-all duration-300 w-full ${
+                      shouldShowExpanded() ? "p-3 justify-between" : "p-3 justify-center"
+                    }`}
+                  >
+                  {shouldShowExpanded() ? (
+                    <>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Gear size={16} />
+                        <span className="text-sm truncate">AI Analysis & MCP</span>
+                      </div>
+                      <div className="flex-shrink-0 ml-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          shape="circular"
+                          className="h-6 w-6"
+                          onClick={() => setShowMcpPanel(!showMcpPanel)}
+                        >
+                          <Gear size={14} />
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setShowMcpPanel(!showMcpPanel)}
+                      className="p-0 bg-transparent border-none cursor-pointer"
+                      aria-label="Open MCP Settings"
+                    >
+                      <Gear size={16} />
+                    </button>
+                  )}
+                  </div>
+                </Tooltip>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-neutral-200 dark:border-neutral-800 my-4" />
+
+              {/* Clear Conversation */}
+              <div className="w-full">
+                <Tooltip content="Clear conversation">
+                  <div
+                    className={`transition-all duration-300 w-full ${
+                      shouldShowExpanded() ? "" : "flex justify-center"
+                    }`}
+                  >
+                  {shouldShowExpanded() ? (
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      className="w-full justify-start text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 px-3 py-3"
+                      onClick={clearHistory}
+                    >
+                      <Trash size={16} className="mr-2" />
+                      Clear conversation
+                    </Button>
+                  ) : (
+                    <button
+                      onClick={clearHistory}
+                      className="p-3 bg-transparent border-none cursor-pointer text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
+                      aria-label="Clear conversation"
+                    >
+                      <Trash size={16} />
+                    </button>
+                  )}
+                  </div>
+                </Tooltip>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div
-          className={`flex-1 flex flex-col h-full bg-transparent ${!drawerOpen ? "lg:ml-0" : "lg:ml-64"}`}
-        >
-          {/* Header */}
-          <header className="flex-shrink-0 w-full bg-white shadow-sm h-16 px-4 flex items-center justify-between z-40">
-            <div className="flex items-center">
+        {/* Header - starts after sidebar on desktop */}
+        <header className={`fixed top-0 right-0 bg-white h-16 px-4 flex items-center justify-between z-50 left-0 ${
+          isLargeScreen ? (sidebarExpanded ? 'lg:left-64' : 'lg:left-16') : ''
+        }`}>
+          <div className="flex items-center">
+            {/* Mobile hamburger button - only visible on small screens */}
+            <div className="lg:hidden">
               <Button
                 variant="ghost"
                 size="sm"
                 shape="square"
                 className="rounded-full mr-2"
-                onClick={toggleDrawer}
+                onClick={toggleMobileMenu}
               >
                 <List size={20} />
               </Button>
-              <div className="flex items-center px-4 py-3">
-                <img src="/favicon.png" alt="MyMediset Logo" className="h-12" />
-                <span className="ml-2 text-lg font-semibold truncate text-black font-pacifico">
-                Agent
-                </span>
-              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                shape="square"
-                className="rounded-full"
-                onClick={clearHistory}
-              >
-                <Trash size={18} />
-              </Button>
+            <div className="flex items-center px-4 py-3">
+              <img src="/favicon.png" alt="MyMediset Logo" className="h-12" />
+              <span className="ml-2 text-lg font-semibold truncate text-black font-pacifico">
+              Agent
+              </span>
             </div>
-          </header>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              shape="square"
+              className="rounded-full"
+              onClick={clearHistory}
+            >
+              <Trash size={18} />
+            </Button>
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <div className={`flex-1 flex flex-col h-full bg-transparent pt-16 ${
+          isLargeScreen ? (sidebarExpanded ? 'lg:ml-64' : 'lg:ml-16') : ''
+        }`}>
             
           {/* Scrollable Content Area - from header to form */}
           <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 dark:hover:scrollbar-thumb-gray-500 bg-white">
             {agentMessages.length === 0 && !isLoading ? (
               /* Welcome Mode - Center everything together */
-              <div className="h-full flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 relative -mt-8">
+              <div className="h-full flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 relative">
               {/* Welcome Content */}
               <div className="mb-8">
                 <AnimatedAiBot />
@@ -672,7 +829,11 @@ export default function Chat() {
               </div>
                 
                 {/* Centered Input Area */}
-                <div className="w-full max-w-4xl">
+                <div className={`w-full max-w-4xl transition-all duration-700 ease-out ${
+                  showWelcomeInput 
+                    ? 'opacity-100 translate-y-0' 
+                    : 'opacity-0 translate-y-8'
+                }`}>
                   
                   <form
                     onSubmit={(e) => {
@@ -854,9 +1015,9 @@ export default function Chat() {
               </div>
             ) : (
               /* Messages Mode - Content within scrollable area */
-              <div className="px-2 sm:px-4 py-2 sm:py-4">
+              <div className="px-2 sm:px-4 py-4 sm:py-6">
                   <div className="max-w-4xl mx-auto">
-                    <div className="space-y-4 sm:space-y-6 py-4">
+                    <div className="space-y-4 sm:space-y-6">
                       {agentMessages.map((m: Message, index) => {
                 const isUser = m.role === "user";
                 // const isLastMessage = index === agentMessages.length - 1;
@@ -1178,17 +1339,19 @@ export default function Chat() {
           </div>
           
           {(agentMessages.length === 0 && !isLoading) && (
-            <div className="absolute left-0 right-0 flex justify-center z-30 px-2 sm:px-4"
+            <div className={`absolute left-0 right-0 flex justify-center z-30 px-2 sm:px-4 transition-all duration-700 ease-out ${
+              showWelcomePills 
+                ? 'opacity-100 translate-y-0' 
+                : 'opacity-0 translate-y-8'
+            }`}
                  style={{
-                   bottom: window.innerHeight < 720 
-                     ? 'calc(5rem + env(safe-area-inset-bottom) + 8px)' 
-                     : 'calc(5rem + env(safe-area-inset-bottom) + 16px)'
+                   bottom: 'calc(5rem + env(safe-area-inset-bottom) + 16px)'
                  }}>
               <PillSection className="w-full justify-center" />
             </div>
           )}
           {(agentMessages.length > 0 || isLoading) && (
-            <div className={`fixed bottom-0 left-0 right-0 z-40 p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-transparent ${drawerOpen ? 'lg:left-64' : ''}`}>
+            <div className="fixed bottom-0 left-0 right-0 z-40 p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-transparent">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();

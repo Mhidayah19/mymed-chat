@@ -27,8 +27,8 @@ export const Pill: React.FC<PillProps> = ({
 
   const sizeStyles = {
     sm: "px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm md:px-4 md:py-2 md:text-base",
-    md: "px-3 py-1.5 text-sm sm:px-4 sm:py-2 sm:text-base md:px-5 md:py-2.5 md:text-lg",
-    lg: "px-4 py-2 text-base sm:px-6 sm:py-3 sm:text-lg md:px-8 md:py-4 md:text-xl",
+    md: "px-3 py-1.5 text-sm sm:px-4 sm:py-2 sm:text-base lg:px-5 lg:py-2.5 lg:text-lg",
+    lg: "px-4 py-2 text-base sm:px-6 sm:py-3 sm:text-lg lg:px-8 lg:py-4 lg:text-xl",
   };
 
   return (

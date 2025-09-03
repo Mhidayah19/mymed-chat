@@ -31,11 +31,6 @@
       "tag": "v2",
       "new_sqlite_classes": ["BookingAnalysisAgent"],
     },
-  ],
-  "secrets_stores": [
-    {
-      "binding": "GEMINI_API_KEY",
-      "id": "82f4725b0ef54094a243014707166424",
-    },
-  ],
+  ]
+
 }
