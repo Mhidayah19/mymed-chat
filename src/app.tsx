@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, use } from "react";
-import { Theme } from "@radix-ui/themes";
+import { Theme, Box, Flex, Grid } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "agents/ai-react";
@@ -349,6 +349,7 @@ export default function Chat() {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
+
   // Sidebar hover handlers with debouncing (desktop only)
   const handleSidebarMouseEnter = useCallback(() => {
     // Only enable hover expand on larger screens
@@ -619,6 +620,7 @@ export default function Chat() {
             lg:translate-x-0
             ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
             w-64
+            pt-16 /* Add top padding equal to header height */
           `}
           onMouseEnter={handleSidebarMouseEnter}
           onMouseLeave={handleSidebarMouseLeave}
@@ -626,6 +628,7 @@ export default function Chat() {
           {/* Navigation Items */}
           <div className="p-2 w-full pt-8">
             <div className="space-y-2 w-full">
+
               {/* Theme Toggle */}
               <div className="w-full">
                 <Tooltip content="Theme">
@@ -778,7 +781,7 @@ export default function Chat() {
         <header className={`fixed top-0 right-0 bg-white h-16 px-4 flex items-center justify-between z-50 left-0 ${
           isLargeScreen ? (sidebarExpanded ? 'lg:left-64' : 'lg:left-16') : ''
         }`}>
-          <div className="flex items-center">
+          <Flex align="center">
             {/* Mobile hamburger button - only visible on small screens */}
             <div className="lg:hidden">
               <Button
@@ -791,14 +794,14 @@ export default function Chat() {
                 <List size={20} />
               </Button>
             </div>
-            <div className="flex items-center px-4 py-3">
+            <Flex align="center" className="px-4 py-3">
               <img src="/favicon.png" alt="MyMediset Logo" className="h-12" />
               <span className="ml-2 text-lg font-semibold truncate text-black font-pacifico">
               Agent
               </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
+            </Flex>
+          </Flex>
+          <Flex align="center" gap="2">
             <Button
               variant="ghost"
               size="sm"
@@ -808,7 +811,7 @@ export default function Chat() {
             >
               <Trash size={18} />
             </Button>
-          </div>
+          </Flex>
         </header>
 
         {/* Main Content Area */}
@@ -876,7 +879,7 @@ export default function Chat() {
                             aria-label="Ask anything"
                           />
                           
-                          <div className="flex items-center gap-2 mr-3">
+                          <Flex align="center" gap="2" className="mr-3">
                             <DropdownMenuPrimitive.Root>
                               <DropdownMenuPrimitive.Trigger asChild>
                                 <Button
@@ -1006,7 +1009,7 @@ export default function Chat() {
                             >
                               <PaperPlaneTilt size={18} className="rotate-45" />
                             </button>
-                          </div>
+                          </Flex>
                         </div>
                       </div>
                     </div>
@@ -1339,10 +1342,12 @@ export default function Chat() {
           </div>
           
           {(agentMessages.length === 0 && !isLoading) && (
-            <div className={`absolute left-0 right-0 flex justify-center z-30 px-2 sm:px-4 transition-all duration-700 ease-out ${
+            <div className={`absolute right-0 flex justify-center z-30 px-2 sm:px-4 transition-all duration-700 ease-out ${
               showWelcomePills 
                 ? 'opacity-100 translate-y-0' 
                 : 'opacity-0 translate-y-8'
+            } ${
+              isLargeScreen ? (sidebarExpanded ? 'lg:left-64' : 'lg:left-16') : 'left-0'
             }`}
                  style={{
                    bottom: 'calc(5rem + env(safe-area-inset-bottom) + 16px)'
@@ -1351,7 +1356,9 @@ export default function Chat() {
             </div>
           )}
           {(agentMessages.length > 0 || isLoading) && (
-            <div className="fixed bottom-0 left-0 right-0 z-40 p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-transparent">
+            <div className={`fixed bottom-0 right-0 z-40 p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-transparent ${
+              isLargeScreen ? (sidebarExpanded ? 'lg:left-64' : 'lg:left-16') : 'left-0'
+            }`}>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -1393,7 +1400,7 @@ export default function Chat() {
                         aria-label="Ask anything"
                       />
 
-                      <div className="flex items-center gap-2 mr-3">
+                      <Flex align="center" gap="2" className="mr-3">
                         <DropdownMenuPrimitive.Root>
                           <DropdownMenuPrimitive.Trigger asChild>
                             <Button
@@ -1523,7 +1530,7 @@ export default function Chat() {
                         >
                           <PaperPlaneTilt size={18} className="rotate-45" />
                         </button>
-                      </div>
+                      </Flex>
                     </div>
                   </div>
                 </div>
@@ -1598,7 +1605,7 @@ function HasOpenAIKey() {
       <div className="fixed top-0 left-0 right-0 z-50 bg-red-500/10 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto p-4">
           <div className="bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-red-200 dark:border-red-900 p-4">
-            <div className="flex items-start gap-3">
+            <Flex align="start" gap="3">
               <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
                 <svg
                   className="w-5 h-5 text-red-600 dark:text-red-400"
@@ -1617,7 +1624,7 @@ function HasOpenAIKey() {
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
               </div>
-              <div className="flex-1">
+              <Box flexGrow="1">
                 <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">
                   Google Generative AI API Key Not Configured
                 </h3>
@@ -1650,8 +1657,8 @@ function HasOpenAIKey() {
                     instructions.
                   </a>
                 </p>
-              </div>
-            </div>
+              </Box>
+            </Flex>
           </div>
         </div>
       </div>

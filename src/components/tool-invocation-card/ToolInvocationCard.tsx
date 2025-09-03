@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import type React from "react";
 import { Robot, CaretDown } from "@phosphor-icons/react";
 import { Button } from "@/components/button/Button";
-import { Card } from "@/components/card/Card";
 import { Tooltip } from "@/components/tooltip/Tooltip";
 import { TextShimmer } from "@/components/text/text-shimmer";
 import { APPROVAL } from "@/shared";
@@ -9,7 +9,7 @@ import {
   ListRecommendedCard, 
   RecommendedBookingCard, 
   BookingOperationResultCard
-} from "../booking";
+} from "@/components/booking";
 import type { 
   ContentResult,
   ToolInvocationResult
@@ -31,6 +31,75 @@ interface ToolInvocationCardProps {
   addToolResult: (args: { toolCallId: string; result: string }) => void;
 }
 
+// Registry for specialized tool renderers
+const SPECIAL_TOOL_COMPONENTS = {
+  getCachedTemplates: ListRecommendedCard,
+  getRecommendedBooking: RecommendedBookingCard,
+  createBooking: BookingOperationResultCard,
+  updateBooking: BookingOperationResultCard,
+} as const;
+
+type SpecialToolKey = keyof typeof SPECIAL_TOOL_COMPONENTS;
+
+// Clean up MCP tool names by removing multiple prefixes
+const cleanToolName = (toolName: string) => {
+  let cleaned = toolName;
+  while (true) {
+    const match = cleaned.match(/^[A-Za-z0-9\-]+_(.+)$/);
+    if (match && match[1]) {
+      cleaned = match[1];
+    } else {
+      break;
+    }
+  }
+  return cleaned;
+};
+
+// Action map for user-friendly verbs
+const ACTION_MAP: Record<string, string> = {
+  get: "Loading",
+  create: "Creating",
+  update: "Updating",
+  delete: "Removing",
+  search: "Searching",
+  find: "Finding",
+  check: "Checking",
+  track: "Tracking",
+  schedule: "Scheduling",
+  cancel: "Cancelling",
+  confirm: "Confirming",
+  send: "Sending",
+  fetch: "Getting",
+  load: "Loading",
+  save: "Saving",
+  export: "Exporting",
+  import: "Importing",
+};
+
+// User-friendly tool name mapping based on action patterns
+const getDisplayName = (toolName: string) => {
+  const cleanedName = cleanToolName(toolName);
+  
+  // Improved regex to handle more complex naming patterns
+  const actionMatch = cleanedName.match(/^([a-z]+)([A-Z][a-zA-Z]+)s?$/);
+  
+  if (!actionMatch) {
+    return { name: cleanedName };
+  }
+  
+  const [, action, subject] = actionMatch;
+  
+  const userFriendlyAction = ACTION_MAP[action.toLowerCase()] || action;
+  
+  // Smarter pluralization: only add 's' if not already ending in 's'
+  const formattedSubject = subject.replace(/([A-Z])/g, ' $1').trim();
+  const displaySubject = formattedSubject.endsWith('s') ? formattedSubject : `${formattedSubject}s`;
+  
+  const displayName = `${userFriendlyAction} ${displaySubject}`;
+  
+  return { name: displayName };
+};
+
 export function ToolInvocationCard({
   toolInvocation,
   toolCallId,
@@ -39,124 +108,27 @@ export function ToolInvocationCard({
 }: ToolInvocationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // User-friendly tool name mapping based on action patterns
-  const getDisplayName = (toolName: string) => {
-    const cleanedName = cleanToolName(toolName);
-    
-    // Extract action verb (first word) and subject (rest)
-    const actionMatch = cleanedName.match(/^([a-z]+)(.*)$/i);
-    if (!actionMatch) return { name: cleanedName, icon: "🔧" };
-    
-    const [, action, subject] = actionMatch;
-    
-    // Map action verbs to user-friendly equivalents
-    const actionMap: Record<string, string> = {
-      get: "Loading",
-      create: "Creating",
-      update: "Updating", 
-      delete: "Removing",
-      search: "Searching",
-      find: "Finding",
-      check: "Checking",
-      track: "Tracking",
-      schedule: "Scheduling",
-      cancel: "Cancelling",
-      confirm: "Confirming",
-      send: "Sending",
-      fetch: "Getting",
-      load: "Loading",
-      save: "Saving",
-      export: "Exporting",
-      import: "Importing",
-    };
-
-    // Map common subjects to icons
-    const subjectIconMap: Record<string, string> = {
-      booking: "🗓️",
-      appointment: "📅", 
-      patient: "👤",
-      template: "📋",
-      material: "📦",
-      task: "⏰",
-      recommendation: "💡",
-      availability: "📅",
-      schedule: "📆",
-      report: "📊",
-      notification: "🔔",
-      email: "📧",
-      data: "💾",
-    };
-    
-    const userFriendlyAction = actionMap[action.toLowerCase()] || action;
-    const subjectLower = subject.toLowerCase();
-    const icon = Object.entries(subjectIconMap).find(([key]) => 
-      subjectLower.includes(key)
-    )?.[1] || "🔧";
-    
-    // Format subject nicely (camelCase to spaces)
-    const formattedSubject = subject.replace(/([A-Z])/g, ' $1').trim() || "Item";
-    
-    return { 
-      name: `${userFriendlyAction} ${formattedSubject}`, 
-      icon 
-    };
-  };
-
-  // Clean up MCP tool names by removing multiple prefixes (e.g., "qgu_zEu9_createBooking" -> "createBooking")
-  const cleanToolName = (toolName: string) => {
-    // Keep removing prefixes until we get to the actual tool name
-    let cleaned = toolName;
-    while (true) {
-      const match = cleaned.match(/^[A-Za-z0-9\-]+_(.+)$/);
-      if (match && match[1]) {
-        cleaned = match[1];
-      } else {
-        break;
-      }
-    }
-    return cleaned;
-  };
+  // Precompute display name and cleaned tool name
+  const displayInfo = useMemo(() => getDisplayName(toolInvocation.toolName), [toolInvocation.toolName]);
+  const cleanedToolName = useMemo(() => cleanToolName(toolInvocation.toolName), [toolInvocation.toolName]);
 
   // Check if this is a UI-rendered tool and render the specialized component
-  const cleanedToolName = cleanToolName(toolInvocation.toolName);
-  
-  // Debug logging
-  if (toolInvocation.toolName.includes("createBooking") || toolInvocation.toolName.includes("updateBooking")) {
-    console.log(`Tool name: "${toolInvocation.toolName}" -> cleaned: "${cleanedToolName}"`);
-    console.log(`State: ${toolInvocation.state}`);
-  }
-  
-  if ((cleanedToolName === "getCachedTemplates" || cleanedToolName === "getRecommendedBooking" || cleanedToolName === "createBooking" || cleanedToolName === "updateBooking") && toolInvocation.state === "result") {
-    const result = toolInvocation.result as ToolInvocationResult;
-    
-    // Handle getRecommendedBooking - let component handle raw data
-    if (cleanedToolName === "getRecommendedBooking") {
+  if (toolInvocation.state === "result") {
+    const key = cleanedToolName as SpecialToolKey;
+    if (key === "createBooking" || key === "updateBooking") {
+      const Component = SPECIAL_TOOL_COMPONENTS[key] as React.ComponentType<{ rawResult?: any; requestArgs?: any }>;
       return (
         <div className="w-full">
-          <RecommendedBookingCard rawResult={result} />
+          <Component rawResult={toolInvocation.result} requestArgs={toolInvocation.args} />
         </div>
       );
     }
-    
-    // Handle createBooking/updateBooking - let component handle raw data
-    else if (cleanedToolName === "createBooking" || cleanedToolName === "updateBooking") {
-      console.log(`Raw ${cleanedToolName} response body:`, JSON.stringify(result, null, 2));
-      console.log(`${cleanedToolName} request args:`, JSON.stringify(toolInvocation.args, null, 2));
+
+    if (key === "getCachedTemplates" || key === "getRecommendedBooking") {
+      const Component = SPECIAL_TOOL_COMPONENTS[key] as React.ComponentType<{ rawResult?: any }>;
       return (
         <div className="w-full">
-          <BookingOperationResultCard 
-            rawResult={result} 
-            requestArgs={toolInvocation.args}
-          />
-        </div>
-      );
-    }
-    
-    // Handle getCachedTemplates - let component handle raw data
-    else if (cleanedToolName === "getCachedTemplates") {
-      return (
-        <div className="w-full">
-          <ListRecommendedCard rawResult={result} />
+          <Component rawResult={toolInvocation.result} />
         </div>
       );
     }
@@ -197,29 +169,21 @@ export function ToolInvocationCard({
           />
         </div>
         <h4 className="font-medium flex items-center gap-2 flex-1 text-left">
-          {(() => {
-            const displayInfo = getDisplayName(toolInvocation.toolName);
-            return (
-              <>
-                <span className="text-base">{displayInfo.icon}</span>
-                {toolInvocation.state === "call" ? (
-                  <TextShimmer
-                    className={needsConfirmation ? "text-amber-600" : "text-cyan-600"}
-                    duration={1.5}
-                  >
-                    {displayInfo.name}
-                  </TextShimmer>
-                ) : (
-                  displayInfo.name
-                )}
-                {!needsConfirmation && toolInvocation.state === "result" && (
-                  <span className="text-xs text-emerald-600 font-medium animate-pulse">
-                    ✅ Done
-                  </span>
-                )}
-              </>
-            );
-          })()}
+          {toolInvocation.state === "call" ? (
+            <TextShimmer
+              className={needsConfirmation ? "text-amber-600" : "text-cyan-600"}
+              duration={1.5}
+            >
+              {displayInfo.name}
+            </TextShimmer>
+          ) : (
+            displayInfo.name
+          )}
+          {!needsConfirmation && toolInvocation.state === "result" && (
+            <span className="text-xs text-emerald-600 font-medium animate-pulse">
+              ✅ Done
+            </span>
+          )}
         </h4>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">
