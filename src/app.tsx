@@ -125,6 +125,26 @@ const pulseAnimation = `
   }
 `;
 
+const organicAnimationStyles = `
+  @keyframes organic-appear {
+    0% {
+      transform: scale(0.85);
+      opacity: 0;
+      filter: blur(6px);
+    }
+    60% {
+      transform: scale(1.05);
+      opacity: 0.5;
+      filter: blur(0);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  .organic-appear { animation: organic-appear 900ms ease-out both; }
+`;
+
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     // Check localStorage first, default to light if not found
@@ -144,6 +164,7 @@ export default function Chat() {
   // Welcome animation states
   const [showWelcomeInput, setShowWelcomeInput] = useState(false);
   const [showWelcomePills, setShowWelcomePills] = useState(false);
+  const [showOrganicShapes, setShowOrganicShapes] = useState(false);
 
   // Track screen size for responsive behavior
   useEffect(() => {
@@ -186,14 +207,13 @@ export default function Chat() {
   // Add animation styles to head on mount
   useEffect(() => {
     const styleElement = document.createElement("style");
-    styleElement.innerHTML = pulseAnimation;
+    styleElement.innerHTML = pulseAnimation + "\n" + organicAnimationStyles;
     document.head.appendChild(styleElement);
 
     return () => {
       document.head.removeChild(styleElement);
     };
   }, []);
-
 
   // Scroll to bottom on mount
   useEffect(() => {
@@ -208,10 +228,10 @@ export default function Chat() {
   // Session management for conversation persistence
   const useSession = () => {
     const [sessionId] = useState(() => {
-      let id = localStorage.getItem('chat-session-id');
+      let id = sessionStorage.getItem('chat-session-id');
       if (!id) {
         id = crypto.randomUUID();
-        localStorage.setItem('chat-session-id', id);
+        sessionStorage.setItem('chat-session-id', id);
       }
       return id;
     });
@@ -259,12 +279,15 @@ export default function Chat() {
       // Reset animation states
       setShowWelcomeInput(false);
       setShowWelcomePills(false);
+      setShowOrganicShapes(false);
       
       // Staggered animation timers
-      const inputTimer = setTimeout(() => setShowWelcomeInput(true), 1800); // After bot + message
-      const pillsTimer = setTimeout(() => setShowWelcomePills(true), 2200); // 400ms after input
+      const shapesTimer = setTimeout(() => setShowOrganicShapes(true), 1000); // Shapes first
+      const inputTimer = setTimeout(() => setShowWelcomeInput(true), 1800); // After shapes
+      const pillsTimer = setTimeout(() => setShowWelcomePills(true), 2200); // After input
       
       return () => {
+        clearTimeout(shapesTimer);
         clearTimeout(inputTimer);
         clearTimeout(pillsTimer);
       };
@@ -596,8 +619,16 @@ export default function Chat() {
         
         {/* Organic Shape Background Elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-          <OrganicShape variant="petal" size="xl" className="hidden sm:block absolute top-20 right-10 opacity-30" />
-          <OrganicShape variant="crystal" size="md" className="hidden sm:block absolute top-1/2 right-1/3 opacity-25" />
+          <div className={`hidden sm:block absolute top-20 right-10 transform transition-all duration-700 ease-out ${
+            showOrganicShapes ? 'opacity-30 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'
+          }`}>
+            <OrganicShape variant="petal" size="xl" />
+          </div>
+          <div className={`hidden sm:block absolute top-1/2 right-1/3 transform transition-all duration-700 ease-out delay-150 ${
+            showOrganicShapes ? 'opacity-25 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'
+          }`}>
+            <OrganicShape variant="crystal" size="md" />
+          </div>
         </div>
 
       {/* Layout Container */}
@@ -825,8 +856,8 @@ export default function Chat() {
               {/* Welcome Content */}
               <div className="mb-8">
                 <AnimatedAiBot />
-                <OrganicShape variant="petal" size="lg" className="hidden sm:block absolute top-10 right-20 opacity-40" />
-                <OrganicShape variant="crystal" size="md" className="hidden md:block absolute bottom-10 left-10 opacity-30" />
+                <OrganicShape variant="petal" size="lg" className="hidden sm:block absolute top-10 right-20 opacity-40 organic-appear" />
+                <OrganicShape variant="crystal" size="md" className="hidden md:block absolute bottom-60 left-30 opacity-30 organic-appear" />
               </div>
                 
                 {/* Centered Input Area */}
@@ -1049,6 +1080,7 @@ export default function Chat() {
                           <div>
                             {m.parts?.map((part, i) => {
                               if (part.type === "text") {
+                                console.log(part.text);
                                 // Check if the text contains booking information
                                 const bookings = parseBookingInfo(part.text);
                                 const textWithoutBookings =

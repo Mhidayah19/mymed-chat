@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import type { CSSProperties } from "react";
 
 export type OrganicShapeProps = {
   variant?: "petal" | "blob" | "crystal";
@@ -6,6 +7,7 @@ export type OrganicShapeProps = {
   className?: string;
   animate?: boolean;
   opacity?: number;
+  style?: CSSProperties;
 };
 
 const OrganicShape = ({
@@ -14,6 +16,7 @@ const OrganicShape = ({
   className = "",
   animate = true,
   opacity = 0.8,
+  style,
 }: OrganicShapeProps) => {
   const variants = {
     petal: "bg-gradient-to-br from-cyan-400 via-cyan-300 to-cyan-200",
@@ -49,6 +52,7 @@ const OrganicShape = ({
         className
       )}
       style={{
+        ...style,
         clipPath: clipPaths[variant],
         opacity,
       }}
