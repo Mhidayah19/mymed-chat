@@ -7,10 +7,6 @@ declare namespace Cloudflare {
 		GOOGLE_GENERATIVE_AI_API_KEY: string;
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
 		BookingAnalysisAgent: DurableObjectNamespace<import("./src/server").BookingAnalysisAgent>;
-		// Cloudflare Secrets Store binding for Gemini API key
-		GEMINI_API_KEY: {
-			get(): Promise<string>;
-		};
 	}
 }
 interface Env extends Cloudflare.Env {}

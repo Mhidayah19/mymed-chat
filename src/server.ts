@@ -37,6 +37,12 @@ console.log(
 export class Chat extends AIChatAgent<Env> {
   // Flag to track if auto-analysis has been triggered for current session
   private autoAnalysisTriggered = false;
+  
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // Debug: Log when a new agent instance is created
+    console.log("🔍 New Chat Agent instance created for:", this.ctx.id?.toString());
+  }
 
   // Override broadcast to handle WebSocket errors gracefully
   broadcast(message: string, exclude?: string[]) {

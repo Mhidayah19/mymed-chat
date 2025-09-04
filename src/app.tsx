@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, use } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Theme, Box, Flex, Grid } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import { useAgent } from "agents/react";
@@ -128,21 +128,32 @@ const pulseAnimation = `
 const organicAnimationStyles = `
   @keyframes organic-appear {
     0% {
-      transform: scale(0.85);
+      transform: scale(0.3) rotate(-30deg) translateY(100px);
       opacity: 0;
-      filter: blur(6px);
+      filter: blur(20px) brightness(1.5);
     }
-    60% {
-      transform: scale(1.05);
-      opacity: 0.5;
-      filter: blur(0);
+    30% {
+      transform: scale(0.7) rotate(-10deg) translateY(30px);
+      opacity: 0.3;
+      filter: blur(10px) brightness(1.2);
+    }
+    70% {
+      transform: scale(1.15) rotate(5deg) translateY(-10px);
+      opacity: 0.8;
+      filter: blur(2px) brightness(1.1);
+    }
+    85% {
+      transform: scale(0.95) rotate(-2deg) translateY(5px);
+      opacity: 0.9;
+      filter: blur(1px) brightness(1.05);
     }
     100% {
-      transform: scale(1);
+      transform: scale(1) rotate(0deg) translateY(0px);
       opacity: 1;
+      filter: blur(0) brightness(1);
     }
   }
-  .organic-appear { animation: organic-appear 900ms ease-out both; }
+  .organic-appear { animation: organic-appear 2000ms cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
 `;
 
 export default function Chat() {
@@ -228,9 +239,11 @@ export default function Chat() {
   // Session management for conversation persistence
   const useSession = () => {
     const [sessionId] = useState(() => {
+      // Check if we already have a session ID for this tab
       let id = sessionStorage.getItem('chat-session-id');
       if (!id) {
-        id = crypto.randomUUID();
+        // Only generate new ID if none exists
+        id = `session-${Date.now()}-${crypto.randomUUID()}`;
         sessionStorage.setItem('chat-session-id', id);
       }
       return id;
@@ -239,10 +252,16 @@ export default function Chat() {
   };
 
   const sessionId = useSession();
+  
+  // Debug: Log session ID only once when component mounts
+  useEffect(() => {
+    console.log("🔍 Session initialized:", sessionId);
+    console.log("🔍 Agent configuration:", { agent: "chat", name: sessionId });
+  }, [sessionId]);
 
   const agent = useAgent({
     agent: "chat",
-    id: sessionId, // Use session ID as the instance ID
+    name: sessionId, // Use session ID as the Durable Object name for isolation
   });
 
   const {
@@ -283,8 +302,8 @@ export default function Chat() {
       
       // Staggered animation timers
       const shapesTimer = setTimeout(() => setShowOrganicShapes(true), 1000); // Shapes first
-      const inputTimer = setTimeout(() => setShowWelcomeInput(true), 1800); // After shapes
-      const pillsTimer = setTimeout(() => setShowWelcomePills(true), 2200); // After input
+      const inputTimer = setTimeout(() => setShowWelcomeInput(true), 1200); // Earlier - overlaps with shapes
+      const pillsTimer = setTimeout(() => setShowWelcomePills(true), 1400); // Earlier - shortly after input
       
       return () => {
         clearTimeout(shapesTimer);
@@ -418,7 +437,7 @@ export default function Chat() {
 
   // Shared pill section component - now responsive to sidebar state
   const PillSection = ({ className }: { className?: string }) => (
-    <div className={cn("flex flex-wrap justify-center gap-1 sm:gap-2 md:gap-3 lg:gap-4 max-w-4xl mx-auto px-1 sm:px-2", className)}>
+    <div className={cn("flex flex-wrap justify-center gap-1 sm:gap-2 md:gap-3 lg:gap-4 max-w-5xl mx-auto px-1 sm:px-2", className)}>
       <Pill 
         size="md"
         onPillClick={(text) => {
@@ -619,13 +638,13 @@ export default function Chat() {
         
         {/* Organic Shape Background Elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-          <div className={`hidden sm:block absolute top-20 right-10 transform transition-all duration-700 ease-out ${
-            showOrganicShapes ? 'opacity-30 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'
+          <div className={`hidden sm:block absolute top-20 right-10 transform transition-all duration-[1500ms] ease-[cubic-bezier(0.175,0.885,0.32,1.4)] ${
+            showOrganicShapes ? 'opacity-30 scale-100 translate-y-0 rotate-0' : 'opacity-0 scale-50 translate-y-20 -rotate-45'
           }`}>
             <OrganicShape variant="petal" size="xl" />
           </div>
-          <div className={`hidden sm:block absolute top-1/2 right-1/3 transform transition-all duration-700 ease-out delay-150 ${
-            showOrganicShapes ? 'opacity-25 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'
+          <div className={`hidden sm:block absolute top-1/2 right-1/3 transform transition-all duration-[1800ms] ease-[cubic-bezier(0.23,1,0.32,1)] delay-[300ms] ${
+            showOrganicShapes ? 'opacity-25 scale-100 translate-y-0 rotate-0' : 'opacity-0 scale-[0.3] translate-y-32 rotate-180'
           }`}>
             <OrganicShape variant="crystal" size="md" />
           </div>
@@ -637,14 +656,14 @@ export default function Chat() {
         {/* Mobile Overlay */}
         {mobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black/20 dark:bg-black/50 z-20 lg:hidden"
+            className="fixed inset-0 bg-black/20 dark:bg-black/50 z-30 lg:hidden"
             onClick={toggleMobileMenu}
           />
         )}
 
         {/* Collapsible Hover Sidebar */}
         <div
-          className={`fixed top-0 left-0 h-screen z-30 transition-all duration-300 ease-out bg-slate-50 border-r border-neutral-200 dark:border-neutral-800 shadow-lg 
+          className={`fixed top-0 left-0 h-screen z-40 lg:z-30 transition-all duration-300 ease-out bg-slate-50 border-r border-neutral-200 dark:border-neutral-800 shadow-lg 
             ${sidebarExpanded ? "lg:w-64" : "lg:w-16"}
             lg:translate-x-0
             ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
@@ -655,24 +674,24 @@ export default function Chat() {
           onMouseLeave={handleSidebarMouseLeave}
         >
           {/* Navigation Items */}
-          <div className="p-2 w-full pt-8">
-            <div className="space-y-2 w-full">
+          <div className="px-3 py-2 w-full pt-8">
+            <div className="space-y-2 w-full flex flex-col">
 
               {/* Theme Toggle */}
-              <div className="w-full">
-                <Tooltip content="Theme">
+              <div className="w-full flex">
+                <Tooltip className="w-full" content="Theme">
                   <div
-                    className={`flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-md transition-all duration-300 w-full ${
+                    className={`flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-md transition-all duration-300 flex-1 ${
                       shouldShowExpanded() ? "p-3 justify-between" : "p-3 justify-center"
                     }`}
                   >
                   {shouldShowExpanded() ? (
                     <>
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
                         <span className="text-sm truncate">Theme</span>
                       </div>
-                      <div className="flex-shrink-0 ml-2">
+                      <div className="flex-shrink-0">
                         <Toggle
                           toggled={theme === "dark"}
                           aria-label="Toggle theme"
@@ -694,20 +713,20 @@ export default function Chat() {
               </div>
 
               {/* Debug Mode Toggle */}
-              <div className="w-full">
-                <Tooltip content="Debug Mode">
+              <div className="w-full flex">
+                <Tooltip className="w-full" content="Debug Mode">
                   <div
-                    className={`flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-md transition-all duration-300 w-full ${
+                    className={`flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-md transition-all duration-300 flex-1 ${
                       shouldShowExpanded() ? "p-3 justify-between" : "p-3 justify-center"
                     }`}
                   >
                   {shouldShowExpanded() ? (
                     <>
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Bug size={16} />
                         <span className="text-sm truncate">Debug Mode</span>
                       </div>
-                      <div className="flex-shrink-0 ml-2">
+                      <div className="flex-shrink-0">
                         <Toggle
                           toggled={showDebug}
                           aria-label="Toggle debug mode"
@@ -731,20 +750,20 @@ export default function Chat() {
               </div>
 
               {/* MCP Settings */}
-              <div className="w-full">
-                <Tooltip content="AI Analysis & MCP">
+              <div className="w-full flex">
+                <Tooltip className="w-full" content="MCP Settings">
                   <div
-                    className={`flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-md transition-all duration-300 w-full ${
+                    className={`flex items-center bg-neutral-100 dark:bg-neutral-800 rounded-md transition-all duration-300 flex-1 ${
                       shouldShowExpanded() ? "p-3 justify-between" : "p-3 justify-center"
                     }`}
                   >
                   {shouldShowExpanded() ? (
                     <>
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Gear size={16} />
                         <span className="text-sm truncate">AI Analysis & MCP</span>
                       </div>
-                      <div className="flex-shrink-0 ml-2">
+                      <div className="flex-shrink-0">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -807,7 +826,7 @@ export default function Chat() {
         </div>
 
         {/* Header - starts after sidebar on desktop */}
-        <header className={`fixed top-0 right-0 bg-white h-16 px-4 flex items-center justify-between z-50 left-0 ${
+        <header className={`fixed top-0 right-0 bg-white h-16 px-4 flex items-center justify-between z-50 left-0 transition-all duration-300 ease-out ${
           isLargeScreen ? (sidebarExpanded ? 'lg:left-64' : 'lg:left-16') : ''
         }`}>
           <Flex align="center">
@@ -844,7 +863,7 @@ export default function Chat() {
         </header>
 
         {/* Main Content Area */}
-        <div className={`flex-1 flex flex-col h-full bg-transparent pt-16 ${
+        <div className={`flex-1 flex flex-col h-full bg-transparent pt-16 transition-all duration-300 ease-out ${
           isLargeScreen ? (sidebarExpanded ? 'lg:ml-64' : 'lg:ml-16') : ''
         }`}>
             
@@ -861,10 +880,10 @@ export default function Chat() {
               </div>
                 
                 {/* Centered Input Area */}
-                <div className={`w-full max-w-4xl transition-all duration-700 ease-out ${
+                <div className={`w-[95%] sm:w-full max-w-5xl transition-all duration-[1200ms] ease-[cubic-bezier(0.175,0.885,0.32,1.4)] ${
                   showWelcomeInput 
-                    ? 'opacity-100 translate-y-0' 
-                    : 'opacity-0 translate-y-8'
+                    ? 'opacity-100 translate-y-0 scale-100 blur-0' 
+                    : 'opacity-0 translate-y-16 scale-90 blur-sm'
                 }`}>
                   
                   <form
@@ -875,7 +894,7 @@ export default function Chat() {
                     className="w-full"
                   >
                     <div className="relative w-full">
-                      <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200"
+                      <div className="relative rounded-full p-0.5 shadow-sm"
                            style={{ background: 'linear-gradient(135deg, #00D4FF 0%, #8B5CF6 100%)' }}>
                         <div className="relative flex items-center bg-ob-btn-secondary-bg rounded-full py-2">
                           {/* AI icon on the left */}
@@ -1047,8 +1066,8 @@ export default function Chat() {
               </div>
             ) : (
               /* Messages Mode - Content within scrollable area */
-              <div className="px-2 sm:px-4 py-4 sm:py-6">
-                  <div className="max-w-4xl mx-auto">
+              <div className="px-4 sm:px-6 py-4 sm:py-6">
+                  <div className="max-w-[85%] sm:max-w-4xl mx-auto">
                     <div className="space-y-4 sm:space-y-6">
                       {agentMessages.map((m: Message, index) => {
                 const isUser = m.role === "user";
@@ -1071,12 +1090,12 @@ export default function Chat() {
                     >
                       <div
                         className={`flex gap-1 sm:gap-2 ${
-                          isUser ? "flex-row-reverse max-w-[98%] sm:max-w-[98%]" : "flex-row w-full"
+                          isUser ? "flex-row-reverse max-w-[85%] sm:max-w-[80%]" : "flex-row max-w-[90%] sm:max-w-[85%]"
                         }`}
                       >
                         {/* Avatar removed */}
 
-                        <div className="w-full">
+                        <div className="w-full min-w-0 overflow-hidden">
                           <div>
                             {m.parts?.map((part, i) => {
                               if (part.type === "text") {
@@ -1138,7 +1157,7 @@ export default function Chat() {
                                             </p>
                                           </div>
                                         ) : (
-                                          <div className="prose dark:prose-invert prose-sm sm:prose-base max-w-none text-gray-600 w-full break-words">
+                                          <div className="prose dark:prose-invert prose-sm sm:prose-base max-w-full text-gray-600 w-full break-words overflow-wrap-anywhere">
                                             {/* Process all card types */}
                                             {(() => {
                                               // Parse generic tool results
@@ -1360,10 +1379,10 @@ export default function Chat() {
           </div>
           
           {(agentMessages.length === 0 && !isLoading) && (
-            <div className={`absolute right-0 flex justify-center z-30 px-2 sm:px-4 transition-all duration-700 ease-out ${
+            <div className={`absolute right-0 flex justify-center z-30 px-2 sm:px-4 transition-all duration-[1500ms] ease-[cubic-bezier(0.23,1,0.32,1)] ${
               showWelcomePills 
-                ? 'opacity-100 translate-y-0' 
-                : 'opacity-0 translate-y-8'
+                ? 'opacity-100 translate-y-0 scale-100 blur-0' 
+                : 'opacity-0 translate-y-12 scale-75 blur-md'
             } ${
               isLargeScreen ? (sidebarExpanded ? 'lg:left-64' : 'lg:left-16') : 'left-0'
             }`}
@@ -1374,9 +1393,12 @@ export default function Chat() {
             </div>
           )}
           {(agentMessages.length > 0 || isLoading) && (
-            <div className={`fixed bottom-0 right-0 z-40 p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] bg-transparent ${
+            <div className={`fixed bottom-0 right-0 z-40 p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] transition-all duration-300 ease-out ${
               isLargeScreen ? (sidebarExpanded ? 'lg:left-64' : 'lg:left-16') : 'left-0'
-            }`}>
+            }`}
+                 style={{ 
+                   background: 'linear-gradient(to bottom, transparent 0%, transparent 50%, rgba(255,255,255,0.95) 50%, rgba(255,255,255,1) 100%)'
+                 }}>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -1384,8 +1406,8 @@ export default function Chat() {
                 }}
                 className="w-full"
               >
-                <div className="relative w-full max-w-4xl mx-auto">
-                  <div className="relative rounded-full p-0.5 shadow-sm hover:shadow-md transition-shadow duration-200"
+                <div className="relative w-[95%] sm:w-full max-w-5xl mx-auto">
+                  <div className="relative rounded-full p-0.5 shadow-sm"
                        style={{ background: 'linear-gradient(135deg, #00D4FF 0%, #8B5CF6 100%)' }}>
                     <div className="relative flex items-center bg-ob-btn-secondary-bg rounded-full py-2">
                       {/* AI icon on the left */}
@@ -1554,8 +1576,15 @@ export default function Chat() {
                 </div>
               </form>
               
-              {/* Pills section */}
-              <PillSection className="mt-4 md:mt-6" />
+              {/* Pills section - only show when no messages */}
+              {agentMessages.length === 0 && <PillSection className="mt-4 md:mt-6" />}
+              
+              {/* Disclaimer text */}
+              <div className="mt-4 text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  mymediset Agent can make mistakes. Check important info and actions.
+                </p>
+              </div>
             </div>
           )}
     </div>
@@ -1611,12 +1640,17 @@ export default function Chat() {
   );
 }
 
-const hasOpenAiKeyPromise = fetch("/check-open-ai-key").then((res) =>
-  res.json<{ success: boolean }>()
-);
-
 function HasOpenAIKey() {
-  const hasOpenAiKey = use(hasOpenAiKeyPromise);
+  const [hasOpenAiKey, setHasOpenAiKey] = useState<{ success: boolean } | null>(null);
+  
+  useEffect(() => {
+    fetch("/check-open-ai-key")
+      .then((res) => res.json<{ success: boolean }>())
+      .then(setHasOpenAiKey)
+      .catch(() => setHasOpenAiKey({ success: false }));
+  }, []);
+  
+  if (!hasOpenAiKey) return null; // Loading state
 
   if (!hasOpenAiKey.success) {
     return (

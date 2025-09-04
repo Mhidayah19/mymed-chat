@@ -1,135 +1,122 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Robot } from "@phosphor-icons/react";
+import { useEffect, useState, useRef } from "react";
+import Lottie, { type LottieRefCurrentProps } from "lottie-react";
+import maleAgentAnimation from "../../assets/Male-Agent.json";
 
-export function AnimatedAiBot({ size = 160 }: { size?: number }) {
+export function AnimatedAiBot({
+  size = 160,
+  isTyping = false,
+  mood = "normal" as "normal" | "thinking" | "speaking" | "greeting",
+}: {
+  size?: number;
+  isTyping?: boolean;
+  mood?: "normal" | "thinking" | "speaking" | "greeting";
+}) {
   const [isActive, setIsActive] = useState(false);
-  const [eyeState, setEyeState] = useState<"normal" | "blink" | "scan">(
-    "normal"
-  );
+  const lottieRef = useRef<LottieRefCurrentProps | null>(null);
 
   useEffect(() => {
     const activateBot = setTimeout(() => setIsActive(true), 500);
-
-    const eyeAnimation = setInterval(() => {
-      const rand = Math.random();
-      if (rand < 0.1) setEyeState("blink");
-      else if (rand < 0.3) setEyeState("scan");
-      else setEyeState("normal");
-    }, 2000);
-
-    return () => {
-      clearTimeout(activateBot);
-      clearInterval(eyeAnimation);
-    };
+    return () => clearTimeout(activateBot);
   }, []);
+
+  // Control Lottie animation based on mood/state
+  useEffect(() => {
+    if (!lottieRef.current) return;
+
+    switch (mood) {
+      case "thinking":
+        // Loop blinking/thinking animation (frames 45-86)
+        lottieRef.current.playSegments([45, 86], true);
+        break;
+      case "speaking":
+        // Loop mouth movement animation (frames 48-94)
+        lottieRef.current.playSegments([48, 94], true);
+        break;
+      case "greeting":
+        // Play full animation once then return to normal
+        lottieRef.current.playSegments([0, 120], false);
+        break;
+      default:
+        // Normal idle state with occasional blinks
+        lottieRef.current.playSegments([0, 120], true);
+    }
+  }, [mood]);
 
   return (
     <div className="flex flex-col items-center justify-center space-y-6">
       <div className="relative" style={{ width: size, height: size }}>
-        {/* Outer energy rings */}
+        {/* Subtle background glow for the Lottie animation */}
         <div
-          className="absolute inset-0 rounded-full border-2 border-accent/20 motion-safe:animate-spin motion-reduce:animate-none"
-          style={{ animationDuration: "8s" }}
-        />
-        <div
-          className="absolute inset-2 rounded-full border border-accent/30 motion-safe:animate-spin motion-reduce:animate-none"
-          style={{ animationDuration: "6s", animationDirection: "reverse" }}
+          className={`absolute inset-0 rounded-full bg-gradient-to-br from-accent/5 via-transparent to-accent/5 transition-all duration-1000 ${
+            isActive ? "scale-100 opacity-100" : "scale-95 opacity-50"
+          }`}
         />
 
-        {/* Main bot body */}
-        <div
-          className={`absolute inset-4 bg-gradient-to-br from-card via-muted to-card rounded-full shadow-2xl transition-all duration-1000 ${isActive ? "scale-100 shadow-accent/20" : "scale-95"}`}
-        >
-          {/* Inner glow effect */}
-          <div className="absolute inset-1 bg-gradient-to-br from-accent/10 to-transparent rounded-full" />
-
-          {/* Android head shape with Robot icon */}
-          <div className="absolute inset-3 bg-gradient-to-b from-background to-muted rounded-full flex flex-col items-center justify-center">
-            {/* Antenna */}
-            <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-              <div className="w-1 h-4 bg-[#00D4FF] rounded-full motion-safe:animate-pulse motion-reduce:animate-none" />
-              <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-[#00D4FF]/60 rounded-full motion-safe:animate-ping motion-reduce:animate-none" />
-            </div>
-
-            {/* Central Robot Icon - Large and Centered */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-[rgb(0,104,120)]/10 text-[rgb(0,104,120)] rounded-full p-3 motion-safe:animate-pulse motion-reduce:animate-none">
-                <Robot
-                  weight="duotone"
-                  size={Math.max(size * 0.35, 60)}
-                  className="transition-all duration-300"
-                />
-              </div>
-            </div>
-
-            {/* Simplified indicator dots below icon */}
-            <div className="flex space-x-1 absolute bottom-3 left-1/2 transform -translate-x-1/2">
+        {/* Processing indicator when typing */}
+        {isTyping && (
+          <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
+            <div className="flex space-x-1">
               {[...Array(3)].map((_, i) => (
                 <div
                   key={i}
-                  className={`w-1.5 h-1.5 rounded-full motion-safe:animate-pulse motion-reduce:animate-none transition-all duration-300 ${
-                    eyeState === "scan" ? "bg-[#00D4FF]" : "bg-[rgb(0,104,120)]"
-                  }`}
-                  style={{
-                    animationDelay: `${i * 0.2}s`,
-                    animationDuration: "1.5s",
-                  }}
+                  className="w-2 h-2 bg-accent rounded-full motion-safe:animate-bounce motion-reduce:animate-none"
+                  style={{ animationDelay: `${i * 0.2}s` }}
                 />
               ))}
             </div>
-
-            {/* Processing indicator */}
-            <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2">
-              <div className="flex space-x-1">
-                {[...Array(3)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="w-1 h-1 bg-accent rounded-full motion-safe:animate-bounce motion-reduce:animate-none"
-                    style={{ animationDelay: `${i * 0.2}s` }}
-                  />
-                ))}
-              </div>
-            </div>
           </div>
+        )}
+
+        {/* Main Lottie Animation */}
+        <div
+          className={`absolute inset-0 flex items-center justify-center transition-all duration-1000 ${
+            isActive ? "scale-100 opacity-100" : "scale-95 opacity-50"
+          }`}
+        >
+          <Lottie
+            animationData={maleAgentAnimation}
+            loop={!isTyping} // Don't loop when typing to control segments
+            autoplay={true}
+            style={{ 
+              width: size * 1.8, 
+              height: size * 1.8,
+              transform: "scale(1.5)" // Scale to completely fill the circular boundary
+            }}
+            lottieRef={lottieRef}
+            className="drop-shadow-lg"
+          />
         </div>
 
-        {/* Floating particles */}
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-1 h-1 bg-accent/40 rounded-full motion-safe:animate-ping motion-reduce:animate-none"
-            style={{
-              top: `${20 + Math.sin(i * 60) * 30}%`,
-              left: `${20 + Math.cos(i * 60) * 30}%`,
-              animationDelay: `${i * 0.5}s`,
-              animationDuration: "3s",
-            }}
-          />
-        ))}
-
-        {/* Holographic effect */}
+        {/* Mood indicator ring */}
         <div
-          className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-accent/5 to-transparent motion-safe:animate-pulse motion-reduce:animate-none"
-          style={{ animationDuration: "4s" }}
+          className={`absolute inset-0 rounded-full border-2 transition-all duration-500 ${
+            mood === "thinking"
+              ? "border-blue-400/30 motion-safe:animate-pulse"
+              : mood === "speaking"
+                ? "border-green-400/30 motion-safe:animate-pulse"
+                : "border-accent/20"
+          }`}
         />
       </div>
 
       <div
-        className={`text-center space-y-3 transition-all duration-1000 ${isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
+        className={`text-center space-y-3 transition-all duration-1000 ${
+          isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        }`}
       >
         <div className="relative">
           <h2 className="text-2xl font-semibold">
-            <span className="text-black">mymediset</span>{" "}
+            <span className="text-black">Welcome</span>{" "}
             <span className="bg-gradient-to-r from-[#00D4FF] via-[#8B5CF6] to-[#00D4FF] bg-clip-text text-transparent">
-              Agent
+              Hidayah
             </span>
           </h2>
         </div>
         <p className="text-muted-foreground max-w-xs leading-relaxed">
-          Your personal assistant at your service. Ready to help with bookings,
-          materials, and task scheduling.
+          Your personal assistant at your service. Ready to help manage your
+          bookings, materials and lose items.
         </p>
       </div>
     </div>
