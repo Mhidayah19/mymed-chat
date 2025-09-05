@@ -42,7 +42,7 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
         const response = await agentFetch({
           agent: "chat",
           host: agent.host,
-          name: "default",
+          name: agent.name,
           path: "list-mcp",
         });
 
@@ -95,7 +95,7 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
       const response = await agentFetch({
         agent: "chat",
         host: agent.host,
-        name: "default",
+        name: agent.name,
         path: "list-prompts",
       });
 
@@ -134,7 +134,7 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
         {
           agent: "chat",
           host: agent.host,
-          name: "default",
+          name: agent.name,
           path: "remove-mcp",
         },
         {
@@ -183,7 +183,7 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
         {
           agent: "chat",
           host: agent.host,
-          name: "default",
+          name: agent.name,
           path: "add-mcp",
         },
         {
@@ -269,7 +269,7 @@ const MCPSettings = ({ agent }: MCPSettingsProps) => {
         {
           agent: "chat",
           host: agent.host,
-          name: "default",
+          name: agent.name,
           path: "disconnect-mcp",
         },
         {

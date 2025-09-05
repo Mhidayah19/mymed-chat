@@ -56,7 +56,6 @@ import {
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import McpSettings from "@/components/mcp/McpSettings";
 import AddServerModal from "@/components/mcp/AddServerModal";
-import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 
 // Icon imports
 import {
@@ -69,7 +68,6 @@ import {
   List,
   X,
   PaperPlaneTilt,
-  Sliders,
 } from "@phosphor-icons/react";
 
 // List of tools that require human confirmation
@@ -243,7 +241,8 @@ export default function Chat() {
       let id = sessionStorage.getItem('chat-session-id');
       if (!id) {
         // Only generate new ID if none exists
-        id = `session-${Date.now()}-${crypto.randomUUID()}`;
+        const shortId = crypto.randomUUID().split('-')[0];
+        id = `mymediset-chat-${shortId}`;
         sessionStorage.setItem('chat-session-id', id);
       }
       return id;
@@ -332,7 +331,7 @@ export default function Chat() {
         const response = await agentFetch({
           agent: "chat",
           host: agent.host,
-          name: "default",
+          name: agent.name || sessionId,
           path: "list-mcp",
         });
 
@@ -464,7 +463,7 @@ export default function Chat() {
       const response = await agentFetch({
         agent: "chat",
         host: agent.host,
-        name: "default",
+        name: agent.name || sessionId,
         path: "list-mcp",
       });
 
@@ -513,7 +512,7 @@ export default function Chat() {
         {
           agent: "chat",
           host: agent.host,
-          name: "default",
+          name: agent.name || sessionId,
           path: "remove-mcp",
         },
         {
@@ -547,7 +546,7 @@ export default function Chat() {
         {
           agent: "chat",
           host: agent.host,
-          name: "default",
+          name: agent.name || sessionId,
           path: "add-mcp",
         },
         {
@@ -611,7 +610,7 @@ export default function Chat() {
         {
           agent: "chat",
           host: agent.host,
-          name: "default",
+          name: agent.name || sessionId,
           path: "disconnect-mcp",
         },
         {
@@ -928,119 +927,6 @@ export default function Chat() {
                           />
                           
                           <Flex align="center" gap="2" className="mr-3">
-                            <DropdownMenuPrimitive.Root>
-                              <DropdownMenuPrimitive.Trigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  shape="circular"
-                                  className="h-9 w-9 rounded-full"
-                                  aria-label="MCP Control Panel"
-                                  style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(139, 92, 246, 0.2) 100%)'}}
-                                >
-                                  <Sliders size={16} />
-                                </Button>
-                              </DropdownMenuPrimitive.Trigger>
-                              <DropdownMenuPrimitive.Portal>
-                                <DropdownMenuPrimitive.Content
-                                  align="end"
-                                  side="top"
-                                  className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-xl p-1 text-base font-medium text-neutral-900 dark:text-white z-50"
-                                >
-                                  <DropdownMenuPrimitive.Label className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">MCP Connections</DropdownMenuPrimitive.Label>
-                                  <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
-                                  {servers.length === 0 && (
-                                    <span className="p-3 text-neutral-500 dark:text-neutral-400 text-sm select-none text-center w-full">
-                                      No MCP servers available.
-                                    </span>
-                                  )}
-                                  {servers.map((server) => (
-                                    <DropdownMenuPrimitive.Item
-                                      key={server.id}
-                                      className="flex items-center justify-between w-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors p-2 rounded-md cursor-pointer"
-                                    >
-                                      <div className="flex items-center gap-2 w-full">
-                                        <span className="flex items-center justify-center w-6 h-6 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold text-xs border border-neutral-200 dark:border-neutral-700 mr-2">
-                                          {(server.name || server.url).charAt(0).toUpperCase()}
-                                        </span>
-                                        <div className="flex flex-col">
-                                          <span className="text-base text-neutral-900 dark:text-neutral-50">
-                                            {server.name || server.url}
-                                          </span>
-                                          <span
-                                            className={`text-xs font-medium lowercase tracking-wide align-middle mt-0.5 ${
-                                              server.connected
-                                                ? "text-green-600 dark:text-green-400"
-                                                : "text-red-600 dark:text-red-400"
-                                            }`}
-                                          >
-                                            {server.connected ? "ready" : "disconnected"}
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        {!server.connected ? (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            shape="square"
-                                            className="rounded-full h-6 w-6 text-gray-400 hover:text-green-500"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              e.preventDefault();
-                                              handleConnectServer(server.id);
-                                            }}
-                                            aria-label="Connect to server"
-                                          >
-                                            ▶
-                                          </Button>
-                                        ) : (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            shape="square"
-                                            className="rounded-full h-6 w-6 text-gray-400 hover:text-red-500"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              e.preventDefault();
-                                              handleDisconnectServer(server.id);
-                                            }}
-                                            aria-label="Disconnect from server"
-                                          >
-                                            ⏸
-                                          </Button>
-                                        )}
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          shape="square"
-                                          className="rounded-full h-6 w-6"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            e.preventDefault();
-                                            handleDeleteServer(server.id);
-                                          }}
-                                          aria-label="Remove MCP Server"
-                                        >
-                                          <Trash size={14} />
-                                        </Button>
-                                      </div>
-                                    </DropdownMenuPrimitive.Item>
-                                  ))}
-                                  <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
-                                  <DropdownMenuPrimitive.Item
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      setShowAddMcpDialog(true);
-                                    }}
-                                    onSelect={(e) => e.preventDefault()}
-                                    className="bg-primary/5 text-primary rounded-lg font-semibold px-3 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
-                                  >
-                                    + Add MCP Server
-                                  </DropdownMenuPrimitive.Item>
-                                </DropdownMenuPrimitive.Content>
-                              </DropdownMenuPrimitive.Portal>
-                            </DropdownMenuPrimitive.Root>
                             <button
                               type="submit"
                               className="inline-flex items-center justify-center h-9 w-9 rounded-full
@@ -1099,7 +985,6 @@ export default function Chat() {
                           <div>
                             {m.parts?.map((part, i) => {
                               if (part.type === "text") {
-                                console.log(part.text);
                                 // Check if the text contains booking information
                                 const bookings = parseBookingInfo(part.text);
                                 const textWithoutBookings =
@@ -1441,119 +1326,6 @@ export default function Chat() {
                       />
 
                       <Flex align="center" gap="2" className="mr-3">
-                        <DropdownMenuPrimitive.Root>
-                          <DropdownMenuPrimitive.Trigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              shape="circular"
-                              className="h-9 w-9 rounded-full"
-                              aria-label="MCP Control Panel"
-                              style={{background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(139, 92, 246, 0.2) 100%)'}}
-                            >
-                              <Sliders size={16} />
-                            </Button>
-                          </DropdownMenuPrimitive.Trigger>
-                          <DropdownMenuPrimitive.Portal>
-                            <DropdownMenuPrimitive.Content
-                              align="end"
-                              side="top"
-                              className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-xl p-1 text-base font-medium text-neutral-900 dark:text-white z-50"
-                            >
-                              <DropdownMenuPrimitive.Label className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">MCP Connections</DropdownMenuPrimitive.Label>
-                              <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
-                              {servers.length === 0 && (
-                                <span className="p-3 text-neutral-500 dark:text-neutral-400 text-sm select-none text-center w-full">
-                                  No MCP servers available.
-                                </span>
-                              )}
-                              {servers.map((server) => (
-                                <DropdownMenuPrimitive.Item
-                                  key={server.id}
-                                  className="flex items-center justify-between w-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors p-2 rounded-md cursor-pointer"
-                                >
-                                  <div className="flex items-center gap-2 w-full">
-                                    <span className="flex items-center justify-center w-6 h-6 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold text-xs border border-neutral-200 dark:border-neutral-700 mr-2">
-                                      {(server.name || server.url).charAt(0).toUpperCase()}
-                                    </span>
-                                    <div className="flex flex-col">
-                                      <span className="text-base text-neutral-900 dark:text-neutral-50">
-                                        {server.name || server.url}
-                                      </span>
-                                      <span
-                                        className={`text-xs font-medium lowercase tracking-wide align-middle mt-0.5 ${
-                                          server.connected
-                                            ? "text-green-600 dark:text-green-400"
-                                            : "text-red-600 dark:text-red-400"
-                                        }`}
-                                      >
-                                        {server.connected ? "ready" : "disconnected"}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {!server.connected ? (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        shape="square"
-                                        className="rounded-full h-6 w-6 text-gray-400 hover:text-green-500"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          e.preventDefault();
-                                          handleConnectServer(server.id);
-                                        }}
-                                        aria-label="Connect to server"
-                                      >
-                                        ▶
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        shape="square"
-                                        className="rounded-full h-6 w-6 text-gray-400 hover:text-red-500"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          e.preventDefault();
-                                          handleDisconnectServer(server.id);
-                                        }}
-                                        aria-label="Disconnect from server"
-                                      >
-                                        ⏸
-                                      </Button>
-                                    )}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      shape="square"
-                                      className="rounded-full h-6 w-6"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        handleDeleteServer(server.id);
-                                      }}
-                                      aria-label="Remove MCP Server"
-                                    >
-                                      <Trash size={14} />
-                                    </Button>
-                                  </div>
-                                </DropdownMenuPrimitive.Item>
-                              ))}
-                              <DropdownMenuPrimitive.Separator className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
-                              <DropdownMenuPrimitive.Item
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setShowAddMcpDialog(true);
-                                }}
-                                onSelect={(e) => e.preventDefault()}
-                                className="bg-primary/5 text-primary rounded-lg font-semibold px-3 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
-                              >
-                                + Add MCP Server
-                              </DropdownMenuPrimitive.Item>
-                            </DropdownMenuPrimitive.Content>
-                          </DropdownMenuPrimitive.Portal>
-                        </DropdownMenuPrimitive.Root>
                         <button
                           type="submit"
                           className="inline-flex items-center justify-center h-9 w-9 rounded-full
